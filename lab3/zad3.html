@@ -8,25 +8,26 @@ var uPMatrix;
 var vertexPositionBuffer;
 var vertexColorBuffer;
 
-function MulMatrix(inA,inB) //Mnożenie macierzy
+function MatrixMul(a,b) //Mnożenie macierzy
 {
-  outC = [
+  c = [
   0,0,0,0,
   0,0,0,0,
   0,0,0,0,
-  0,0,0,0]
+  0,0,0,0
+  ]
   for(let i=0;i<4;i++)
   {
     for(let j=0;j<4;j++)
     {
-      outC[i*4+j] = 0.0;
+      c[i*4+j] = 0.0;
       for(let k=0;k<4;k++)
       {
-        outC[i*4+j]+= inA[i*4+k] * inB[k*4+j];
+        c[i*4+j]+= a[i*4+k] * b[k*4+j];
       }
     }
   }
-  return outC;
+  return c;
 }
 
 function startGL() 
@@ -80,70 +81,132 @@ function startGL()
   
   //Opis sceny 3D, położenie punktów w przestrzeni 3D w formacie X,Y,Z 
   let vertexPosition = [
-  //Top
-    -1.0, +1.0, -1.0,  -1.0, +1.0, +1.0,  +1.0, +1.0, +1.0, //3 punkty po 3 składowe - X1,Y1,Z1, X2,Y2,Z2, X3,Y3,Z3 - 1 trójkąt
-    -1.0, +1.0, -1.0,  +1.0, +1.0, +1.0,  +1.0, +1.0, -1.0,
-  //Left
-    -1.0, -1.0, +1.0,  -1.0, +1.0, +1.0,  -1.0, -1.0, -1.0,
-    -1.0, -1.0, -1.0,  -1.0, +1.0, +1.0,  -1.0, +1.0, -1.0,
-  //Right
-    +1.0, +1.0, +1.0,  +1.0, -1.0, +1.0,  +1.0, -1.0, -1.0,
-    +1.0, +1.0, +1.0,  +1.0, -1.0, -1.0,  +1.0, +1.0, -1.0,
-  //Front
-    +1.0, -1.0, +1.0,  +1.0, +1.0, +1.0,  -1.0, -1.0, +1.0,
-    -1.0, +1.0, +1.0,  -1.0, -1.0, +1.0,  +1.0, +1.0, +1.0,
-  //Back
-    +1.0, +1.0, -1.0,  +1.0, -1.0, -1.0,  -1.0, -1.0, -1.0,
-    +1.0, +1.0, -1.0,  -1.0, -1.0, -1.0,  -1.0, +1.0, -1.0,
-  //Bottom
-    -1.0, -1.0, +1.0,  -1.0, -1.0, -1.0,  +1.0, -1.0, +1.0,
-    +1.0, -1.0, +1.0,  -1.0, -1.0, -1.0,  +1.0, -1.0, -1.0
+  //floor
+     -10.0, -5.0, +10.0,  10.0, -5.0, -10.0,  -10.0, -5.0, -10.0, //3 punkty po 3 składowe - X1,Y1,Z1, X2,Y2,Z2, X3,Y3,Z3 - 1 trójkąt
+     -10.0, -5.0, +10.0,  10.0, -5.0, -10.0,  +10.0, -5.0, +10.0,
+
+     //back side
+     -6, 5, -10,    -6, -5, -10,    +10, 5, -10,
+     10, 5, -10,      -6, -5, -10,    10, -5, -10,
+
+    //left side
+    -10, 5, -10,     -10, -5, -10,    -10, -5, 10,
+    -10, 5, -10,     -10, -5, 10,    -10, 5, 10,
+
+    //right side
+    10, 5, -10,     10, -5, -10,    10, -5, 10,
+    10, 5, -10,     10, -5, 10,    10, 5, 10,
+
+     //front side 1 2
+     -10, 5, 10,    -10, -5, 10,    +5, 5, 10,
+     -10, -5, 10,      5, -5, 10,    5, 5, 10,
+
+     8, 5, 10,    8, -5, 10,    +10, 5, 10,
+     8, -5, 10,      10, -5, 10,    10, 5, 10,
+  
+    //vertical lines from left
+    -6, 5, -10,     -6, -5, -10,    -6, -5, 2,
+    -6, 5, -10,     -6, -5, 2,    -6, 5, 2,
+
+    -2, 5, -8,     -2, -5, -8,    -2, -5, 6,
+    -2, 5, -8,     -2, -5, 6,    -2, 5, 6,
+
+    2, 5, -8,     2, -5, -8,    2, -5, 2,
+    2, 5, -8,     2, -5, 2,    2, 5, 2,
+
+    4,5,6,    4,-5,6,    4,5,10,
+    4,5,10,   4,-5,10,    4,-5,6,
+
+    //horizontal lines from top
+    2,5,-6,   2,-5,-6,    6,5,-6,
+    2,-5,-6,    6,5,-6,   6,-5,-6,
+
+    6,5,-2,   6,-5,-2,    10,5,-2,
+    6,-5,-2,    10,5,-2,   10,-5,-2,
+
+    0,5,2,   0,-5,2,    6,5,2,
+    0,-5,2,    6,5,2,   6,-5,2,
+
+    -8,5,6,   -8,-5,6,    6,5,6,
+    -8,-5,6,    6,5,6,   6,-5,6,
   ]
   
   vertexPositionBuffer = gl.createBuffer(); //Stworzenie tablicy w pamieci karty graficznej
   gl.bindBuffer(gl.ARRAY_BUFFER, vertexPositionBuffer);
   gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(vertexPosition), gl.STATIC_DRAW);
   vertexPositionBuffer.itemSize = 3; //zdefiniowanie liczby współrzednych per wierzchołek
-  vertexPositionBuffer.numItems = 12; //Zdefinoiowanie liczby punktów w naszym buforze
+  vertexPositionBuffer.numItems = 28; //Zdefinoiowanie liczby punktów w naszym buforze
   
   //Opis sceny 3D, kolor każdego z wierzchołków
   let vertexColor = [
-  //Top
-    0.7, 0.7, 0.7,  0.7, 0.7, 0.7,  0.7, 0.7, 0.7, //3 punkty po 3 składowe - R1,G1,B1, R2,G2,B2, R3,G3,B3 - 1 trójkąt
-    0.7, 0.7, 0.7,  0.7, 0.7, 0.7,  0.7, 0.7, 0.7,
-  //Left
-    0.8, 0.8, 0.8,  0.8, 0.8, 0.8,  0.8, 0.8, 0.8,
-    0.8, 0.8, 0.8,  0.8, 0.8, 0.8,  0.8, 0.8, 0.8,
-  //Right
-    0.9, 0.9, 0.9,  0.9, 0.9, 0.9,  0.9, 0.9, 0.9,
-    0.9, 0.9, 0.9,  0.9, 0.9, 0.9,  0.9, 0.9, 0.9,
-  //Front
-    0.6, 0.6, 0.6,  0.6, 0.6, 0.6,  0.6, 0.6, 0.6,
-    0.6, 0.6, 0.6,  0.6, 0.6, 0.6,  0.6, 0.6, 0.6,
-  //Back
-    0.5, 0.5, 0.5,  0.5, 0.5, 0.5,  0.5, 0.5, 0.5,
-    0.5, 0.5, 0.5,  0.5, 0.5, 0.5,  0.5, 0.5, 0.5,
-  //Bottom
-    0.4, 0.4, 0.4,  0.4, 0.4, 0.4,  0.4, 0.4, 0.4,
-    0.4, 0.4, 0.4,  0.4, 0.4, 0.4,  0.4, 0.4, 0.4,
+  //floor
+    0.6, 0.6, 0.6,  0.6, 0.6, 0.6,  0.6, 0.6, 0.6,//3 punkty po 3 składowe - R1,G1,B1, R2,G2,B2, R3,G3,B3 - 1 trójkąt
+    0.6, 0.6, 0.6,  0.6, 0.6, 0.6,  0.6, 0.6, 0.6, 
+    
+    //back side 1 2
+    
+    0,0,0,  0,0,0,  0,0,0,
+    0,0,0,  0,0,0,  0,0,0,
+
+    //left side
+    1,0,1,  1,0,1,  1,0,1,
+    1,0,1,  1,0,1,  1,0,1,
+
+    //right side
+    0.9,0,0,  0.9,0,0,  0.9,0,0,
+    0.9,0,0,  0.9,0,0,  0.9,0,0,
+
+    //front side 1 2
+    0,1,0,  0,1,0,  0,1,0,
+    0,1,0,  0,1,0,  0,1,0,
+
+    0,1,0,  0,1,0,  0,1,0,
+    0,1,0,  0,1,0,  0,1,0,
+
+    //vertical lines from left
+    0.6, 0.5, 0.10,     0.6, 0.5, 0.10,    0.6, 0.5, 0.2,
+    0.6, 0.5, 0.10,     0.6, 0.5, 0.10,    0.6, 0.5, 0.2,
+
+    0.2, 0.5, 0.8,     0.2, 0.5, 0.8,    0.2, 0.5, 0.6,
+    0.2, 0.5, 0.8,     0.2, 0.5, 0.6,    0.2, 0.5, 0.6,
+
+    0.2, 0.5, 0.8,     0.2, 0.5, 0.8,    0.2,0.5, 0.2,
+    0.2, 0.5, 0.8,     0.2, 0.5, 0.2,    0.2, 0.5, 0.2,
+
+    0.4,0.5,0.6,    0.4,0.5,0.6,    0.4,0.5,0.10,
+    0.4,0.5,0.10,   0.4,0.5,0.10,    0.4,0.5,0.6,
+
+    //horizontal lines from top
+    0.2,0.5,0.6,   0.2,0.5,0.6,    0.6,0.5,0.6,
+    0.2,0.5,0.6,    0.6,0.5,0.6,   0.6,0.5,0.6,
+
+    0.6,0.5,0.2,   0.6,0.5,-2,    0.10,0.5,0.2,
+    0.6,0.5,0.2,    0.10,0.5,-2,   0.10,0.5,0.2,
+
+    0.0,0.5,0.2,   0.0,0.5,0.2,    0.6,0.5,0.2,
+    0.0,0.5,0.2,    0.6,0.5,0.2,   0.6,0.5,0.2,
+
+    0.8,0.5,0.6,   0.8,0.5,0.6,    0.6,0.5,0.6,
+    0.8,0.5,0.6,    0.6,0.5,0.6,   0.6,0.5,0.6,
+
   ]
   vertexColorBuffer = gl.createBuffer();
   gl.bindBuffer(gl.ARRAY_BUFFER, vertexColorBuffer);
   gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(vertexColor), gl.STATIC_DRAW);
   vertexColorBuffer.itemSize = 3;
-  vertexColorBuffer.numItems = 12;
+  vertexColorBuffer.numItems = 28;
   
   
   //Macierze opisujące położenie wirtualnej kamery w przestrzenie 3D
   let aspect = gl.viewportWidth/gl.viewportHeight;
-  let fov = 45.0 * Math.PI / 180.0; //Określenie pola widzenia kamery
+  let fov = 110.0 * Math.PI / 180.0; //Określenie pola widzenia kamery
   let zFar = 100.0; //Ustalenie zakresów renderowania sceny 3D (od obiektu najbliższego zNear do najdalszego zFar)
   let zNear = 0.1;
   uPMatrix = [
    1.0/(aspect*Math.tan(fov/2)),0                           ,0                         ,0                            ,
    0                         ,1.0/(Math.tan(fov/2))         ,0                         ,0                            ,
    0                         ,0                           ,-(zFar+zNear)/(zFar-zNear)  , -1,
-   0                         ,0                           ,-(2*zFar*zNear)/(zFar-zNear) ,0.0,
+   0                         ,0                           ,-(1*zFar*zNear)/(zFar-zNear) ,0.0,
   ];
   Tick();
 } 
@@ -151,12 +214,10 @@ function startGL()
 var angleZ = 0.0;
 var angleY = 0.0;
 var angleX = 0.0;
-var tz = -5.0;
+var tz = -15.0;
+var tx = 0;
 function Tick()
 {  
-  angleZ++;
-  angleX++;
-  angleY--;
   let uMVMatrix = [
   1,0,0,0, //Macierz jednostkowa
   0,1,0,0,
@@ -192,10 +253,19 @@ function Tick()
   0,0,tz,1
   ];
 
-  uMVMatrix = MulMatrix(uMVMatrix,uMVRotX);
-  uMVMatrix = MulMatrix(uMVMatrix,uMVRotY);
-  uMVMatrix = MulMatrix(uMVMatrix,uMVRotZ);
-  uMVMatrix = MulMatrix(uMVMatrix,uMVTranslateZ);
+  let uMVTranslateX = [
+  1,0,0,0,
+  0,1,0,0,
+  0,0,1,0,
+  tx,0,0,1
+  ];
+
+  uMVMatrix = MatrixMul(uMVMatrix,uMVRotY);
+  uMVMatrix = MatrixMul(uMVMatrix,uMVRotX);
+  
+  //uMVMatrix = MatrixMul(uMVMatrix,uMVRotZ);
+  uMVMatrix = MatrixMul(uMVMatrix,uMVTranslateZ);
+  uMVMatrix = MatrixMul(uMVMatrix,uMVTranslateX);
   //alert(uPMatrix);
   
   //Render Scene
@@ -221,12 +291,28 @@ function Tick()
   
   gl.drawArrays(gl.TRIANGLES, 0, vertexPositionBuffer.numItems*vertexPositionBuffer.itemSize); //Faktyczne wywołanie rendrowania
    
-  setTimeout(Tick,10);
+  setTimeout(Tick,1);
 }
+function handlekeydown(e)
+{
+ if(e.keyCode==87) angleX=angleX+0.5; //W
+ if(e.keyCode==83) angleX=angleX-1.0; //S
+ if(e.keyCode==68) angleY=angleY+0.5; //A
+ if(e.keyCode==65) angleY=angleY-0.5; //D
+ if(e.keyCode==81) angleZ=angleZ+0.5; //Q
+ if(e.keyCode==69) angleZ=angleZ-0.5; //E
 
+ if(e.keyCode==73) tz=tz+0.5; //I przod
+ if(e.keyCode==75) tz=tz-0.5; //K tyl
+
+ if(e.keyCode==74) tx=tx+0.5; //J lewo 
+ if(e.keyCode==76) tx=tx-0.5; //L prawo
+ //alert(e.keyCode);
+ //alert(angleX);
+}
 </script>
 </head>
-<body onload="startGL()">
+<body onload="startGL()" onkeydown="handlekeydown(event)">
 <canvas id="canvas3D" width="640" height="480" style="border: solid black 1px"></canvas>
 </body>
 </html>
