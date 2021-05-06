@@ -260,7 +260,7 @@ function startGL()
   
   //Macierze opisujące położenie wirtualnej kamery w przestrzenie 3D
   let aspect = gl.viewportWidth/gl.viewportHeight;
-  let fov = 45.0 * Math.PI / 180.0; //Określenie pola widzenia kamery
+  let fov = 90.0 * Math.PI / 180.0; //Określenie pola widzenia kamery
   let zFar = 100.0; //Ustalenie zakresów renderowania sceny 3D (od obiektu najbliższego zNear do najdalszego zFar)
   let zNear = 0.1;
   uPMatrix = [
@@ -275,7 +275,7 @@ function startGL()
 var angleZ = 0.0;
 var angleY = 15.0;
 var angleX = 0.0;
-var KameraPositionZ = -8.0;
+var KameraPositionZ = -20.0;
 
 let rece1 =0;
 let wracaj =0;
@@ -366,7 +366,7 @@ var Object10Sizedy = 1;
 var Object10Sizedz = 0.5;
 var LightPositionX = 0;
 var LightPositionY = 5;
-var LightPositionZ = 5;
+var LightPositionZ = 15;
 
 function Tick()
 { 
@@ -398,7 +398,18 @@ function Tick()
     nogi2 =nogi2 -0.3
     //console.log(rece1);
   }
+  Object1PositionZ=Object1PositionZ+0.02
   
+  Object3PositionZ=Object3PositionZ+0.02
+  
+  Object5PositionZ=Object5PositionZ+0.02
+  
+  Object7PositionZ=Object7PositionZ+0.02
+  
+  Object9PositionZ=Object9PositionZ+0.02
+  Object10PositionZ=Object10PositionZ+0.02
+
+
   let uMMatrix0 = CreateIdentytyMatrix(); 
   let uMMatrix1 = CreateIdentytyMatrix();
   let uMMatrix2 = CreateIdentytyMatrix();
