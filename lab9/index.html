@@ -1,0 +1,2788 @@
+<html>
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+<script type="text/javascript">
+var gl;
+var shaderProgram;
+var uPMatrix;
+var vertexPositionBuffer;
+var vertexColorBuffer;
+var vertexCoordsBuffer;
+var vertexNormalBuffer;
+var indexBuffer;
+
+function MatrixMul(a,b) //Mnożenie macierzy
+{
+  let c = [
+  0,0,0,0,
+  0,0,0,0,
+  0,0,0,0,
+  0,0,0,0
+  ]
+  for(let i=0;i<4;i++)
+  {
+    for(let j=0;j<4;j++)
+    {
+      c[i*4+j] = 0.0;
+      for(let k=0;k<4;k++)
+      {
+        c[i*4+j]+= a[i*4+k] * b[k*4+j];
+      }
+    }
+  }
+  return c;
+}
+
+function MatrixTransposeInverse(m)
+{
+  let r = [
+        0, 0, 0, 0,
+        0, 0, 0, 0,
+        0, 0, 0, 0,
+        0, 0, 0, 0
+    ];
+  r[0] = m[5]*m[10]*m[15] - m[5]*m[14]*m[11] - m[6]*m[9]*m[15] + m[6]*m[13]*m[11] + m[7]*m[9]*m[14] - m[7]*m[13]*m[10];
+  r[1] = -m[1]*m[10]*m[15] + m[1]*m[14]*m[11] + m[2]*m[9]*m[15] - m[2]*m[13]*m[11] - m[3]*m[9]*m[14] + m[3]*m[13]*m[10];
+  r[2] = m[1]*m[6]*m[15] - m[1]*m[14]*m[7] - m[2]*m[5]*m[15] + m[2]*m[13]*m[7] + m[3]*m[5]*m[14] - m[3]*m[13]*m[6];
+  r[3] = -m[1]*m[6]*m[11] + m[1]*m[10]*m[7] + m[2]*m[5]*m[11] - m[2]*m[9]*m[7] - m[3]*m[5]*m[10] + m[3]*m[9]*m[6];
+
+  r[4] = -m[4]*m[10]*m[15] + m[4]*m[14]*m[11] + m[6]*m[8]*m[15] - m[6]*m[12]*m[11] - m[7]*m[8]*m[14] + m[7]*m[12]*m[10];
+  r[5] = m[0]*m[10]*m[15] - m[0]*m[14]*m[11] - m[2]*m[8]*m[15] + m[2]*m[12]*m[11] + m[3]*m[8]*m[14] - m[3]*m[12]*m[10];
+  r[6] = -m[0]*m[6]*m[15] + m[0]*m[14]*m[7] + m[2]*m[4]*m[15] - m[2]*m[12]*m[7] - m[3]*m[4]*m[14] + m[3]*m[12]*m[6];
+  r[7] = m[0]*m[6]*m[11] - m[0]*m[10]*m[7] - m[2]*m[4]*m[11] + m[2]*m[8]*m[7] + m[3]*m[4]*m[10] - m[3]*m[8]*m[6];
+
+  r[8] = m[4]*m[9]*m[15] - m[4]*m[13]*m[11] - m[5]*m[8]*m[15] + m[5]*m[12]*m[11] + m[7]*m[8]*m[13] - m[7]*m[12]*m[9];
+  r[9] = -m[0]*m[9]*m[15] + m[0]*m[13]*m[11] + m[1]*m[8]*m[15] - m[1]*m[12]*m[11] - m[3]*m[8]*m[13] + m[3]*m[12]*m[9];
+  r[10] = m[0]*m[5]*m[15] - m[0]*m[13]*m[7] - m[1]*m[4]*m[15] + m[1]*m[12]*m[7] + m[3]*m[4]*m[13] - m[3]*m[12]*m[5];
+  r[11] = -m[0]*m[5]*m[11] + m[0]*m[9]*m[7] + m[1]*m[4]*m[11] - m[1]*m[8]*m[7] - m[3]*m[4]*m[9] + m[3]*m[8]*m[5];
+
+  r[12] = -m[4]*m[9]*m[14] + m[4]*m[13]*m[10] + m[5]*m[8]*m[14] - m[5]*m[12]*m[10] - m[6]*m[8]*m[13] + m[6]*m[12]*m[9];
+  r[13] = m[0]*m[9]*m[14] - m[0]*m[13]*m[10] - m[1]*m[8]*m[14] + m[1]*m[12]*m[10] + m[2]*m[8]*m[13] - m[2]*m[12]*m[9];
+  r[14] = -m[0]*m[5]*m[14] + m[0]*m[13]*m[6] + m[1]*m[4]*m[14] - m[1]*m[12]*m[6] - m[2]*m[4]*m[13] + m[2]*m[12]*m[5];
+  r[15] = m[0]*m[5]*m[10] - m[0]*m[9]*m[6] - m[1]*m[4]*m[10] + m[1]*m[8]*m[6] + m[2]*m[4]*m[9] - m[2]*m[8]*m[5];
+
+  var det = m[0]*r[0] + m[1]*r[4] + m[2]*r[8] + m[3]*r[12];
+  for (var i = 0; i < 16; i++) r[i] /= det;
+  
+  let rt = [ r[0], r[4], r[8], r[12],
+             r[1], r[5], r[9], r[13],
+             r[2], r[6], r[10], r[14],
+             r[3], r[7], r[11], r[15]
+             ];
+  
+  return rt;
+}
+
+function CreateIdentytyMatrix()
+{
+  return [
+  1,0,0,0, //Macierz jednostkowa
+  0,1,0,0,
+  0,0,1,0,
+  0,0,0,1
+  ];
+}
+
+function CreateTranslationMatrix(tx,ty,tz)
+{
+  return  [
+  1,0,0,0,
+  0,1,0,0,
+  0,0,1,0,
+  tx,ty,tz,1
+  ];
+}
+
+function CreateScaleMatrix(sx,sy,sz)
+{
+  return [
+  sx,0,0,0,
+  0,sy,0,0,
+  0,0,sz,0,
+  0,0,0,1
+  ];
+}
+
+function CreateRotationZMatrix(angleZ)
+{
+  return [
+  +Math.cos(angleZ*Math.PI/180.0),+Math.sin(angleZ*Math.PI/180.0),0,0,
+  -Math.sin(angleZ*Math.PI/180.0),+Math.cos(angleZ*Math.PI/180.0),0,0,
+  0,0,1,0,
+  0,0,0,1
+  ];
+}
+
+function CreateRotationYMatrix(angleY)
+{
+  return [
+  +Math.cos(angleY*Math.PI/180.0),0,-Math.sin(angleY*Math.PI/180.0),0,
+  0,1,0,0,
+  +Math.sin(angleY*Math.PI/180.0),0,+Math.cos(angleY*Math.PI/180.0),0,
+  0,0,0,1
+  ];
+}
+
+function CreateRotationXMatrix(angleX)
+{
+  return [
+  1,0,0,0,
+  0,+Math.cos(angleX*Math.PI/180.0),+Math.sin(angleX*Math.PI/180.0),0,
+  0,-Math.sin(angleX*Math.PI/180.0),+Math.cos(angleX*Math.PI/180.0),0,
+  0,0,0,1
+  ];
+}
+
+function createRect(mx,my,mz,dax,day,daz,dbx,dby,dbz)
+{
+  p1x = mx;             p1y = my;             p1z = mz;
+  p2x = mx + dax;       p2y = my + day;       p2z = mz + daz;
+  p3x = mx + dbx;       p3y = my + dby;       p3z = mz + dbz;
+  p4x = mx + dax + dbx; p4y = my + day + dby; p4z = mz + daz + dbz;
+  
+  let vertexPosition = [p1x,p1y,p1z, p2x,p2y,p2z, p4x,p4y,p4z,  //Pierwszy trójkąt
+                        p1x,p1y,p1z, p4x,p4y,p4z, p3x,p3y,p3z]; //Drugi trójkąt
+                        
+  return vertexPosition;
+}
+
+function createNormal(p1x,p1y,p1z,p2x,p2y,p2z,p3x,p3y,p3z) //Wyznaczenie wektora normalnego dla trójkąta
+{
+  let v1x = p2x - p1x;
+  let v1y = p2y - p1y;
+  let v1z = p2z - p1z;
+  
+  let v2x = p3x - p1x;
+  let v2y = p3y - p1y;
+  let v2z = p3z - p1z;
+  
+  let v3x =  v1y*v2z - v1z*v2y;
+  let v3y =  v1z*v2x - v1x*v2z;
+  let v3z =  v1x*v2y - v1y*v2x;
+  
+  vl = Math.sqrt(v3x*v3x+v3y*v3y+v3z*v3z); //Obliczenie długości wektora
+   
+  v3x/=vl; //Normalizacja na zakreś -1 1
+  v3y/=vl;
+  v3z/=vl;
+  
+  let vertexNormal = [v3x,v3y,v3z, v3x,v3y,v3z, v3x,v3y,v3z];
+  return vertexNormal;
+}
+
+function CreateChurch()
+{
+  //Opis sceny 3D, położenie punktów w przestrzeni 3D w formacie X,Y,Z 
+  let vertexPosition = []; //3 punkty po 3 składowe - X1,Y1,Z1, X2,Y2,Z2, X3,Y3,Z3 - 1 trójkąt
+  let vertexNormal = [];
+  let indexes =[];
+
+  vertexPosition.push(...[0,0,0]);
+vertexPosition.push(...[8.193458,-2.872353,14.757133]);
+vertexPosition.push(...[8.193458,-2.872353,13.545660]);
+vertexPosition.push(...[9.848410,-2.872353,13.545660]);
+vertexPosition.push(...[9.848410,-2.872353,14.757133]);
+vertexPosition.push(...[9.843708,-2.870330,18.369053]);
+vertexPosition.push(...[8.198159,-2.870330,18.369053]);
+vertexPosition.push(...[9.843708,-2.870330,17.178009]);
+vertexPosition.push(...[8.198159,-2.870330,17.178009]);
+vertexPosition.push(...[9.843708,-0.761054,18.369053]);
+vertexPosition.push(...[8.198159,-0.761054,18.369053]);
+vertexPosition.push(...[9.843708,-0.761054,17.178009]);
+vertexPosition.push(...[8.198159,-0.761054,17.178009]);
+vertexPosition.push(...[8.193458,-0.761597,14.757133]);
+vertexPosition.push(...[8.193458,-0.761597,13.545660]);
+vertexPosition.push(...[9.848410,-0.761597,13.545660]);
+vertexPosition.push(...[9.848410,-0.761597,14.757133]);
+vertexPosition.push(...[8.192805,-0.457297,14.807632]);
+vertexPosition.push(...[8.192205,-0.150848,13.635560]);
+vertexPosition.push(...[9.847155,-0.148666,13.635283]);
+vertexPosition.push(...[9.847754,-0.455114,14.807355]);
+vertexPosition.push(...[8.191802,-0.175669,14.933462]);
+vertexPosition.push(...[8.190244,0.417295,13.877028]);
+vertexPosition.push(...[9.845189,0.421658,13.877034]);
+vertexPosition.push(...[9.846747,-0.171306,14.933471]);
+vertexPosition.push(...[8.190514,0.064969,15.126441]);
+vertexPosition.push(...[8.187701,0.905877,14.254356]);
+vertexPosition.push(...[9.842639,0.912278,14.255191]);
+vertexPosition.push(...[9.845452,0.071371,15.127276]);
+vertexPosition.push(...[8.189024,0.248964,15.374014]);
+vertexPosition.push(...[8.184742,1.283118,14.743004]);
+vertexPosition.push(...[9.839671,1.291280,14.745155]);
+vertexPosition.push(...[9.843953,0.257128,15.376164]);
+vertexPosition.push(...[8.187430,0.364347,15.660079]);
+vertexPosition.push(...[8.181561,1.524480,15.311187]);
+vertexPosition.push(...[9.836478,1.534015,15.315056]);
+vertexPosition.push(...[9.842348,0.373884,15.663947]);
+vertexPosition.push(...[8.185836,0.403615,15.966026]);
+vertexPosition.push(...[8.178362,1.614263,15.921945]);
+vertexPosition.push(...[9.833269,1.624691,15.927823]);
+vertexPosition.push(...[9.840742,0.414045,15.971906]);
+vertexPosition.push(...[8.184343,0.364212,16.271957]);
+vertexPosition.push(...[8.175355,1.546627,16.535551]);
+vertexPosition.push(...[9.830251,1.557410,16.543600]);
+vertexPosition.push(...[9.839239,0.374998,16.280008]);
+vertexPosition.push(...[8.183052,0.248701,16.557972]);
+vertexPosition.push(...[8.172736,1.325972,17.112093]);
+vertexPosition.push(...[9.827620,1.336550,17.122334]);
+vertexPosition.push(...[9.837937,0.259283,16.568213]);
+vertexPosition.push(...[8.182045,0.064597,16.805466]);
+vertexPosition.push(...[8.170673,0.966650,17.614069]);
+vertexPosition.push(...[9.825549,0.976475,17.626375]);
+vertexPosition.push(...[9.836920,0.074426,16.817774]);
+vertexPosition.push(...[8.181387,-0.176126,16.998341]);
+vertexPosition.push(...[8.169304,0.492034,18.008827]);
+vertexPosition.push(...[9.824172,0.500609,18.022942]);
+vertexPosition.push(...[9.836255,-0.167547,17.012459]);
+vertexPosition.push(...[8.181122,-0.457810,17.124050]);
+vertexPosition.push(...[8.168715,-0.067005,18.270693]);
+vertexPosition.push(...[9.823577,-0.060096,18.286240]);
+vertexPosition.push(...[9.835984,-0.450899,17.139603]);
+vertexPosition.push(...[8.198311,-0.762132,17.174417]);
+vertexPosition.push(...[8.197517,-0.761239,18.368128]);
+vertexPosition.push(...[9.840802,-0.761523,18.369059]);
+vertexPosition.push(...[9.834416,-0.761289,17.183281]);
+vertexPosition.push(...[8.173282,3.589279,15.303534]);
+vertexPosition.push(...[8.180480,3.585688,15.283497]);
+vertexPosition.push(...[8.168773,3.573426,15.275250]);
+vertexPosition.push(...[8.300091,3.761589,15.568607]);
+vertexPosition.push(...[8.311400,3.767215,15.573359]);
+vertexPosition.push(...[8.308607,3.759761,15.551309]);
+vertexPosition.push(...[9.676062,3.775308,15.576388]);
+vertexPosition.push(...[9.687476,3.769818,15.571788]);
+vertexPosition.push(...[9.679101,3.767907,15.554351]);
+vertexPosition.push(...[9.818728,3.598820,15.307526]);
+vertexPosition.push(...[9.823692,3.582959,15.279120]);
+vertexPosition.push(...[9.811728,3.595090,15.287300]);
+vertexPosition.push(...[8.297009,3.775115,16.182547]);
+vertexPosition.push(...[8.308274,3.779120,16.190605]);
+vertexPosition.push(...[8.308416,3.780395,16.162201]);
+vertexPosition.push(...[8.296608,3.776061,16.147169]);
+vertexPosition.push(...[8.311203,3.771002,15.611633]);
+vertexPosition.push(...[8.311348,3.768724,15.583539]);
+vertexPosition.push(...[8.299983,3.765007,15.591747]);
+vertexPosition.push(...[8.299244,3.767176,15.626250]);
+vertexPosition.push(...[8.170079,3.671986,15.911595]);
+vertexPosition.push(...[8.174158,3.676591,15.885808]);
+vertexPosition.push(...[8.170363,3.671155,15.860686]);
+vertexPosition.push(...[8.165575,3.663176,15.886010]);
+vertexPosition.push(...[9.673059,3.789247,16.167187]);
+vertexPosition.push(...[9.672917,3.787952,16.195574]);
+vertexPosition.push(...[9.684299,3.784094,16.187696]);
+vertexPosition.push(...[9.685078,3.785054,16.152117]);
+vertexPosition.push(...[9.815592,3.682359,15.917521]);
+vertexPosition.push(...[9.820482,3.673604,15.891889]);
+vertexPosition.push(...[9.815799,3.681520,15.866586]);
+vertexPosition.push(...[9.811712,3.686905,15.891494]);
+vertexPosition.push(...[9.675854,3.779364,15.616654]);
+vertexPosition.push(...[9.687720,3.775701,15.631187]);
+vertexPosition.push(...[9.687357,3.773518,15.596913]);
+vertexPosition.push(...[9.675998,3.777092,15.588549]);
+vertexPosition.push(...[8.296957,3.773612,16.196251]);
+vertexPosition.push(...[8.305249,3.772310,16.213881]);
+vertexPosition.push(...[8.308272,3.779074,16.191025]);
+vertexPosition.push(...[8.167338,3.610457,16.470737]);
+vertexPosition.push(...[8.162567,3.595660,16.499615]);
+vertexPosition.push(...[8.174541,3.607753,16.490698]);
+vertexPosition.push(...[9.817463,3.606444,16.507664]);
+vertexPosition.push(...[9.812839,3.621123,16.478910]);
+vertexPosition.push(...[9.805477,3.618377,16.498619]);
+vertexPosition.push(...[9.684242,3.782416,16.202986]);
+vertexPosition.push(...[9.672908,3.787735,16.197540]);
+vertexPosition.push(...[9.675807,3.780980,16.220421]);
+vertexPosition.push(...[9.554794,3.976951,15.906377]);
+vertexPosition.push(...[9.672593,3.863950,16.165876]);
+vertexPosition.push(...[9.554980,3.976338,15.869824]);
+vertexPosition.push(...[9.675386,3.854066,15.615345]);
+vertexPosition.push(...[8.427060,3.969198,15.865692]);
+vertexPosition.push(...[8.310736,3.845705,15.610322]);
+vertexPosition.push(...[8.426875,3.969863,15.902236]);
+vertexPosition.push(...[8.307950,3.855098,16.160891]);
+vertexPosition.push(...[8.178456,-2.887355,13.513062]);
+vertexPosition.push(...[8.181133,-2.887355,18.406048]);
+vertexPosition.push(...[8.181133,-2.887355,17.141014]);
+vertexPosition.push(...[8.178456,-2.887355,14.789731]);
+vertexPosition.push(...[9.860735,-2.887355,18.406048]);
+vertexPosition.push(...[9.863411,-2.887355,13.513062]);
+vertexPosition.push(...[9.863411,-2.887355,14.789731]);
+vertexPosition.push(...[9.860735,-2.887355,17.141014]);
+vertexPosition.push(...[8.278502,-2.803273,-2.126606]);
+vertexPosition.push(...[8.278502,-2.803273,-4.279882]);
+vertexPosition.push(...[9.933453,-2.803273,-4.279882]);
+vertexPosition.push(...[9.933453,-2.803273,-2.126606]);
+vertexPosition.push(...[9.928753,-2.799677,4.293234]);
+vertexPosition.push(...[8.283201,-2.799677,4.293234]);
+vertexPosition.push(...[9.928753,-2.799677,2.176268]);
+vertexPosition.push(...[8.283201,-2.799677,2.176267]);
+vertexPosition.push(...[9.928753,0.949358,4.293234]);
+vertexPosition.push(...[8.283201,0.949358,4.293234]);
+vertexPosition.push(...[9.928753,0.949358,2.176268]);
+vertexPosition.push(...[8.283201,0.949358,2.176267]);
+vertexPosition.push(...[8.278502,0.948394,-2.126606]);
+vertexPosition.push(...[8.278502,0.948394,-4.279882]);
+vertexPosition.push(...[9.933453,0.948394,-4.279882]);
+vertexPosition.push(...[9.933453,0.948394,-2.126606]);
+vertexPosition.push(...[8.277848,1.489257,-2.036850]);
+vertexPosition.push(...[8.277248,2.033940,-4.120096]);
+vertexPosition.push(...[9.932198,2.037818,-4.120587]);
+vertexPosition.push(...[9.932797,1.493136,-2.037341]);
+vertexPosition.push(...[8.276845,1.989824,-1.813197]);
+vertexPosition.push(...[8.275287,3.043760,-3.690911]);
+vertexPosition.push(...[9.930232,3.051514,-3.690897]);
+vertexPosition.push(...[9.931790,1.997579,-1.813182]);
+vertexPosition.push(...[8.275558,2.417535,-1.470197]);
+vertexPosition.push(...[8.272744,3.912167,-3.020244]);
+vertexPosition.push(...[9.927682,3.923544,-3.018759]);
+vertexPosition.push(...[9.930495,2.428912,-1.468712]);
+vertexPosition.push(...[8.274068,2.744567,-1.030160]);
+vertexPosition.push(...[8.269786,4.582675,-2.151718]);
+vertexPosition.push(...[9.924714,4.597185,-2.147896]);
+vertexPosition.push(...[9.928997,2.759079,-1.026337]);
+vertexPosition.push(...[8.272473,2.949650,-0.521708]);
+vertexPosition.push(...[8.266603,5.011674,-1.141829]);
+vertexPosition.push(...[9.921521,5.028622,-1.134952]);
+vertexPosition.push(...[9.927392,2.966601,-0.514830]);
+vertexPosition.push(...[8.270879,3.019445,0.022085]);
+vertexPosition.push(...[8.263405,5.171255,-0.056266]);
+vertexPosition.push(...[9.918312,5.189791,-0.045816]);
+vertexPosition.push(...[9.925786,3.037983,0.032536]);
+vertexPosition.push(...[8.269387,2.949409,0.565849]);
+vertexPosition.push(...[8.260398,5.051038,1.034361]);
+vertexPosition.push(...[9.915294,5.070206,1.048668]);
+vertexPosition.push(...[9.924282,2.968581,0.580157]);
+vertexPosition.push(...[8.268096,2.744100,1.074212]);
+vertexPosition.push(...[8.257779,4.658844,2.059109]);
+vertexPosition.push(...[9.912663,4.677647,2.077308]);
+vertexPosition.push(...[9.922980,2.762908,1.092413]);
+vertexPosition.push(...[8.267088,2.416872,1.514108]);
+vertexPosition.push(...[8.255716,4.020185,2.951323]);
+vertexPosition.push(...[9.910592,4.037649,2.973195]);
+vertexPosition.push(...[9.921963,2.434344,1.535984]);
+vertexPosition.push(...[8.266430,1.989010,1.856924]);
+vertexPosition.push(...[8.254347,3.176601,3.652969]);
+vertexPosition.push(...[9.909215,3.191844,3.678056]);
+vertexPosition.push(...[9.921298,2.004258,1.882017]);
+vertexPosition.push(...[8.266165,1.488345,2.080362]);
+vertexPosition.push(...[8.253758,2.182964,4.118406]);
+vertexPosition.push(...[9.908620,2.195243,4.146042]);
+vertexPosition.push(...[9.921027,1.500629,2.108003]);
+vertexPosition.push(...[8.283354,0.947443,2.169885]);
+vertexPosition.push(...[8.282560,0.949030,4.291588]);
+vertexPosition.push(...[9.925845,0.948524,4.293244]);
+vertexPosition.push(...[9.919459,0.948940,2.185638]);
+vertexPosition.push(...[8.258325,8.681657,-1.155433]);
+vertexPosition.push(...[8.265523,8.675275,-1.191044]);
+vertexPosition.push(...[8.253817,8.653477,-1.205701]);
+vertexPosition.push(...[8.385134,8.987921,-0.684288]);
+vertexPosition.push(...[8.396443,8.997920,-0.675843]);
+vertexPosition.push(...[8.393651,8.984673,-0.715035]);
+vertexPosition.push(...[9.761105,9.012304,-0.670459]);
+vertexPosition.push(...[9.772519,9.002547,-0.678637]);
+vertexPosition.push(...[9.764144,8.999149,-0.709629]);
+vertexPosition.push(...[9.903771,8.698612,-1.148337]);
+vertexPosition.push(...[9.908735,8.670424,-1.198824]);
+vertexPosition.push(...[9.896771,8.691985,-1.184285]);
+vertexPosition.push(...[8.382052,9.011961,0.406930]);
+vertexPosition.push(...[8.393317,9.019081,0.421252]);
+vertexPosition.push(...[8.393459,9.021347,0.370766]);
+vertexPosition.push(...[8.381652,9.013643,0.344049]);
+vertexPosition.push(...[8.396246,9.004652,-0.607815]);
+vertexPosition.push(...[8.396391,9.000603,-0.657749]);
+vertexPosition.push(...[8.385027,8.993997,-0.643159]);
+vertexPosition.push(...[8.384288,8.997851,-0.581834]);
+vertexPosition.push(...[8.255123,8.828659,-0.074660]);
+vertexPosition.push(...[8.259201,8.836844,-0.120494]);
+vertexPosition.push(...[8.255406,8.827184,-0.165146]);
+vertexPosition.push(...[8.250618,8.813002,-0.120137]);
+vertexPosition.push(...[9.758102,9.037079,0.379628]);
+vertexPosition.push(...[9.757961,9.034779,0.430082]);
+vertexPosition.push(...[9.769341,9.027920,0.416084]);
+vertexPosition.push(...[9.770122,9.029628,0.352843]);
+vertexPosition.push(...[9.900636,8.847095,-0.064127]);
+vertexPosition.push(...[9.905525,8.831537,-0.109687]);
+vertexPosition.push(...[9.900842,8.845606,-0.154660]);
+vertexPosition.push(...[9.896755,8.855177,-0.110388]);
+vertexPosition.push(...[9.760897,9.019514,-0.598889]);
+vertexPosition.push(...[9.772764,9.013002,-0.573058]);
+vertexPosition.push(...[9.772400,9.009123,-0.633979]);
+vertexPosition.push(...[9.761041,9.015477,-0.648846]);
+vertexPosition.push(...[8.382000,9.009291,0.431288]);
+vertexPosition.push(...[8.390292,9.006974,0.462622]);
+vertexPosition.push(...[8.393315,9.018998,0.421997]);
+vertexPosition.push(...[8.252381,8.719299,0.919159]);
+vertexPosition.push(...[8.247610,8.692998,0.970486]);
+vertexPosition.push(...[8.259584,8.714492,0.954638]);
+vertexPosition.push(...[9.902507,8.712167,0.984793]);
+vertexPosition.push(...[9.897882,8.738256,0.933687]);
+vertexPosition.push(...[9.890520,8.733376,0.968717]);
+vertexPosition.push(...[9.769285,9.024940,0.443258]);
+vertexPosition.push(...[9.757951,9.034391,0.433581]);
+vertexPosition.push(...[9.760851,9.022386,0.474249]);
+vertexPosition.push(...[9.639837,9.370706,-0.083937]);
+vertexPosition.push(...[9.757637,9.169856,0.377299]);
+vertexPosition.push(...[9.640023,9.369615,-0.148904]);
+vertexPosition.push(...[9.760429,9.152290,-0.601218]);
+vertexPosition.push(...[8.512103,9.356924,-0.156248]);
+vertexPosition.push(...[8.395780,9.137428,-0.610143]);
+vertexPosition.push(...[8.511919,9.358107,-0.091296]);
+vertexPosition.push(...[8.392993,9.154123,0.368437]);
+vertexPosition.push(...[8.263499,-2.829938,-4.337822]);
+vertexPosition.push(...[8.266176,-2.829938,4.358989]);
+vertexPosition.push(...[8.266176,-2.829938,2.110512]);
+vertexPosition.push(...[8.263499,-2.829938,-2.068666]);
+vertexPosition.push(...[9.945778,-2.829938,4.358989]);
+vertexPosition.push(...[9.948455,-2.829938,-4.337822]);
+vertexPosition.push(...[9.948455,-2.829938,-2.068666]);
+vertexPosition.push(...[9.945778,-2.829938,2.110512]);
+vertexPosition.push(...[8.268927,-2.872353,-16.223423]);
+vertexPosition.push(...[8.268927,-2.872353,-17.434895]);
+vertexPosition.push(...[9.923877,-2.872353,-17.434895]);
+vertexPosition.push(...[9.923877,-2.872353,-16.223423]);
+vertexPosition.push(...[9.919177,-2.870330,-12.611502]);
+vertexPosition.push(...[8.273626,-2.870330,-12.611502]);
+vertexPosition.push(...[9.919177,-2.870330,-13.802547]);
+vertexPosition.push(...[8.273626,-2.870330,-13.802547]);
+vertexPosition.push(...[9.919177,-0.761054,-12.611502]);
+vertexPosition.push(...[8.273626,-0.761054,-12.611502]);
+vertexPosition.push(...[9.919177,-0.761054,-13.802547]);
+vertexPosition.push(...[8.273626,-0.761054,-13.802547]);
+vertexPosition.push(...[8.268927,-0.761597,-16.223423]);
+vertexPosition.push(...[8.268927,-0.761597,-17.434895]);
+vertexPosition.push(...[9.923877,-0.761597,-17.434895]);
+vertexPosition.push(...[9.923877,-0.761597,-16.223423]);
+vertexPosition.push(...[8.268272,-0.457297,-16.172922]);
+vertexPosition.push(...[8.267673,-0.150848,-17.344995]);
+vertexPosition.push(...[9.922623,-0.148666,-17.345272]);
+vertexPosition.push(...[9.923223,-0.455114,-16.173201]);
+vertexPosition.push(...[8.267269,-0.175669,-16.047092]);
+vertexPosition.push(...[8.265711,0.417295,-17.103527]);
+vertexPosition.push(...[9.920657,0.421658,-17.103521]);
+vertexPosition.push(...[9.922215,-0.171306,-16.047085]);
+vertexPosition.push(...[8.265982,0.064969,-15.854115]);
+vertexPosition.push(...[8.263168,0.905877,-16.726198]);
+vertexPosition.push(...[9.918106,0.912278,-16.725365]);
+vertexPosition.push(...[9.920919,0.071371,-15.853279]);
+vertexPosition.push(...[8.264492,0.248964,-15.606541]);
+vertexPosition.push(...[8.260210,1.283118,-16.237551]);
+vertexPosition.push(...[9.915138,1.291280,-16.235399]);
+vertexPosition.push(...[9.919421,0.257128,-15.604390]);
+vertexPosition.push(...[8.262897,0.364347,-15.320477]);
+vertexPosition.push(...[8.257028,1.524480,-15.669368]);
+vertexPosition.push(...[9.911946,1.534015,-15.665499]);
+vertexPosition.push(...[9.917816,0.373884,-15.316607]);
+vertexPosition.push(...[8.261304,0.403615,-15.014529]);
+vertexPosition.push(...[8.253829,1.614263,-15.058610]);
+vertexPosition.push(...[9.908737,1.624691,-15.052732]);
+vertexPosition.push(...[9.916210,0.414045,-15.008649]);
+vertexPosition.push(...[8.259811,0.364212,-14.708598]);
+vertexPosition.push(...[8.250822,1.546627,-14.445004]);
+vertexPosition.push(...[9.905719,1.557410,-14.436954]);
+vertexPosition.push(...[9.914707,0.374998,-14.700547]);
+vertexPosition.push(...[8.258520,0.248701,-14.422584]);
+vertexPosition.push(...[8.248203,1.325972,-13.868462]);
+vertexPosition.push(...[9.903088,1.336550,-13.858222]);
+vertexPosition.push(...[9.913404,0.259283,-14.412342]);
+vertexPosition.push(...[8.257512,0.064597,-14.175089]);
+vertexPosition.push(...[8.246141,0.966650,-13.366486]);
+vertexPosition.push(...[9.901016,0.976475,-13.354179]);
+vertexPosition.push(...[9.912388,0.074426,-14.162782]);
+vertexPosition.push(...[8.256855,-0.176126,-13.982214]);
+vertexPosition.push(...[8.244772,0.492034,-12.971726]);
+vertexPosition.push(...[9.899639,0.500609,-12.957612]);
+vertexPosition.push(...[9.911722,-0.167547,-13.968097]);
+vertexPosition.push(...[8.256589,-0.457810,-13.856504]);
+vertexPosition.push(...[8.244183,-0.067005,-12.709864]);
+vertexPosition.push(...[9.899044,-0.060096,-12.694316]);
+vertexPosition.push(...[9.911451,-0.450899,-13.840953]);
+vertexPosition.push(...[8.273778,-0.762132,-13.806137]);
+vertexPosition.push(...[8.272985,-0.761239,-12.612428]);
+vertexPosition.push(...[9.916270,-0.761523,-12.611496]);
+vertexPosition.push(...[9.909883,-0.761289,-13.797275]);
+vertexPosition.push(...[8.248750,3.589279,-15.677021]);
+vertexPosition.push(...[8.255947,3.585688,-15.697058]);
+vertexPosition.push(...[8.244241,3.573426,-15.705304]);
+vertexPosition.push(...[8.375559,3.761589,-15.411947]);
+vertexPosition.push(...[8.386868,3.767215,-15.407196]);
+vertexPosition.push(...[8.384075,3.759761,-15.429246]);
+vertexPosition.push(...[9.751529,3.775308,-15.404166]);
+vertexPosition.push(...[9.762944,3.769818,-15.408768]);
+vertexPosition.push(...[9.754568,3.767907,-15.426205]);
+vertexPosition.push(...[9.894196,3.598820,-15.673030]);
+vertexPosition.push(...[9.899159,3.582959,-15.701435]);
+vertexPosition.push(...[9.887196,3.595090,-15.693254]);
+vertexPosition.push(...[8.372477,3.775115,-14.798008]);
+vertexPosition.push(...[8.383742,3.779120,-14.789950]);
+vertexPosition.push(...[8.383883,3.780395,-14.818354]);
+vertexPosition.push(...[8.372076,3.776061,-14.833386]);
+vertexPosition.push(...[8.386671,3.771002,-15.368922]);
+vertexPosition.push(...[8.386815,3.768724,-15.397016]);
+vertexPosition.push(...[8.375451,3.765007,-15.388807]);
+vertexPosition.push(...[8.374713,3.767176,-15.354304]);
+vertexPosition.push(...[8.245547,3.671986,-15.068960]);
+vertexPosition.push(...[8.249626,3.676591,-15.094747]);
+vertexPosition.push(...[8.245831,3.671155,-15.119869]);
+vertexPosition.push(...[8.241043,3.663176,-15.094544]);
+vertexPosition.push(...[9.748528,3.789247,-14.813369]);
+vertexPosition.push(...[9.748385,3.787952,-14.784982]);
+vertexPosition.push(...[9.759767,3.784094,-14.792858]);
+vertexPosition.push(...[9.760546,3.785054,-14.828438]);
+vertexPosition.push(...[9.891060,3.682359,-15.063033]);
+vertexPosition.push(...[9.895949,3.673604,-15.088666]);
+vertexPosition.push(...[9.891266,3.681520,-15.113969]);
+vertexPosition.push(...[9.887180,3.686905,-15.089061]);
+vertexPosition.push(...[9.751321,3.779364,-15.363900]);
+vertexPosition.push(...[9.763188,3.775701,-15.349367]);
+vertexPosition.push(...[9.762825,3.773518,-15.383642]);
+vertexPosition.push(...[9.751466,3.777092,-15.392006]);
+vertexPosition.push(...[8.372425,3.773612,-14.784304]);
+vertexPosition.push(...[8.380716,3.772310,-14.766674]);
+vertexPosition.push(...[8.383740,3.779074,-14.789531]);
+vertexPosition.push(...[8.242806,3.610457,-14.509818]);
+vertexPosition.push(...[8.238035,3.595660,-14.480941]);
+vertexPosition.push(...[8.250009,3.607753,-14.489858]);
+vertexPosition.push(...[9.892931,3.606444,-14.472892]);
+vertexPosition.push(...[9.888307,3.621123,-14.501645]);
+vertexPosition.push(...[9.880944,3.618377,-14.481936]);
+vertexPosition.push(...[9.759709,3.782416,-14.777569]);
+vertexPosition.push(...[9.748376,3.787735,-14.783014]);
+vertexPosition.push(...[9.751275,3.780980,-14.760133]);
+vertexPosition.push(...[9.630262,3.976951,-15.074179]);
+vertexPosition.push(...[9.748061,3.863950,-14.814678]);
+vertexPosition.push(...[9.630447,3.976338,-15.110730]);
+vertexPosition.push(...[9.750854,3.854066,-15.365211]);
+vertexPosition.push(...[8.502528,3.969198,-15.114862]);
+vertexPosition.push(...[8.386204,3.845705,-15.370233]);
+vertexPosition.push(...[8.502343,3.969863,-15.078319]);
+vertexPosition.push(...[8.383418,3.855098,-14.819665]);
+vertexPosition.push(...[8.253924,-2.887355,-17.467493]);
+vertexPosition.push(...[8.256600,-2.887355,-12.574508]);
+vertexPosition.push(...[8.256600,-2.887355,-13.839540]);
+vertexPosition.push(...[8.253924,-2.887355,-16.190825]);
+vertexPosition.push(...[9.936202,-2.887355,-12.574508]);
+vertexPosition.push(...[9.938879,-2.887355,-17.467493]);
+vertexPosition.push(...[9.938879,-2.887355,-16.190825]);
+vertexPosition.push(...[9.936202,-2.887355,-13.839540]);
+vertexPosition.push(...[8.194743,13.520805,-21.475136]);
+vertexPosition.push(...[8.194743,-2.868681,-21.475136]);
+vertexPosition.push(...[8.194743,13.520805,21.475136]);
+vertexPosition.push(...[8.194743,-2.868680,21.475136]);
+vertexPosition.push(...[-47.785976,13.520805,-21.475136]);
+vertexPosition.push(...[-47.785976,-2.868681,-21.475136]);
+vertexPosition.push(...[-47.785976,13.520805,21.475136]);
+vertexPosition.push(...[-47.785976,-2.868680,21.475136]);
+vertexPosition.push(...[-47.785976,-2.868681,0.000000]);
+vertexPosition.push(...[8.194743,13.520805,0.000000]);
+vertexPosition.push(...[-47.785976,13.520805,0.000000]);
+vertexPosition.push(...[8.194743,-2.868681,0.000000]);
+vertexPosition.push(...[-47.785976,15.696383,0.000000]);
+vertexPosition.push(...[-4.905991,18.985136,-7.146241]);
+vertexPosition.push(...[-4.905991,18.985136,-14.328896]);
+vertexPosition.push(...[-47.785976,15.696383,-21.475136]);
+vertexPosition.push(...[4.905991,18.985136,-14.328896]);
+vertexPosition.push(...[8.194743,15.696383,-21.475136]);
+vertexPosition.push(...[4.905991,18.985136,-7.146240]);
+vertexPosition.push(...[8.194743,15.696383,0.000000]);
+vertexPosition.push(...[8.194743,15.680511,21.475136]);
+vertexPosition.push(...[4.878121,18.997133,14.268337]);
+vertexPosition.push(...[-4.878121,18.997133,14.268337]);
+vertexPosition.push(...[-47.785976,15.680511,21.475136]);
+vertexPosition.push(...[8.194743,15.680511,0.000000]);
+vertexPosition.push(...[4.878121,18.997133,7.206799]);
+vertexPosition.push(...[-4.878121,18.997133,7.206798]);
+vertexPosition.push(...[-47.785976,15.680511,0.000000]);
+vertexPosition.push(...[4.878121,31.502743,14.268337]);
+vertexPosition.push(...[-4.878121,31.502743,14.268337]);
+vertexPosition.push(...[4.878121,31.502743,7.206799]);
+vertexPosition.push(...[-4.878121,31.502743,7.206798]);
+vertexPosition.push(...[-4.905990,31.499527,-7.146242]);
+vertexPosition.push(...[-4.905990,31.499527,-14.328896]);
+vertexPosition.push(...[4.905990,31.499527,-14.328896]);
+vertexPosition.push(...[4.905990,31.499527,-7.146240]);
+vertexPosition.push(...[-4.909861,33.303677,-6.846841]);
+vertexPosition.push(...[-4.913417,35.120567,-13.795899]);
+vertexPosition.push(...[4.898553,35.133507,-13.797538]);
+vertexPosition.push(...[4.902109,33.316616,-6.848479]);
+vertexPosition.push(...[-4.915809,34.973412,-6.100808]);
+vertexPosition.push(...[-4.925047,38.489010,-12.364271]);
+vertexPosition.push(...[4.886896,38.514877,-12.364223]);
+vertexPosition.push(...[4.896135,34.999279,-6.100758]);
+vertexPosition.push(...[-4.923448,36.400120,-4.956666]);
+vertexPosition.push(...[-4.940124,41.385746,-10.127135]);
+vertexPosition.push(...[4.871778,41.423695,-10.122185]);
+vertexPosition.push(...[4.888455,36.438072,-4.951714]);
+vertexPosition.push(...[-4.932280,37.490997,-3.488839]);
+vertexPosition.push(...[-4.957665,43.622353,-7.230008]);
+vertexPosition.push(...[4.854183,43.670753,-7.217257]);
+vertexPosition.push(...[4.879569,37.539402,-3.476087]);
+vertexPosition.push(...[-4.941730,38.175091,-1.792803]);
+vertexPosition.push(...[-4.976531,45.053356,-3.861334]);
+vertexPosition.push(...[4.835254,45.109890,-3.838394]);
+vertexPosition.push(...[4.870055,38.231636,-1.769861]);
+vertexPosition.push(...[-4.951184,38.407906,0.021121]);
+vertexPosition.push(...[-4.995493,45.585667,-0.240234]);
+vertexPosition.push(...[4.816224,45.647499,-0.205378]);
+vertexPosition.push(...[4.860532,38.469742,0.055981]);
+vertexPosition.push(...[-4.960028,38.174286,1.834945]);
+vertexPosition.push(...[-5.013320,45.184666,3.397755]);
+vertexPosition.push(...[4.798329,45.248600,3.445479]);
+vertexPosition.push(...[4.851621,38.238239,1.882674]);
+vertexPosition.push(...[-4.967686,37.489441,3.530685]);
+vertexPosition.push(...[-5.028851,43.876431,6.815994]);
+vertexPosition.push(...[4.782734,43.939148,6.876700]);
+vertexPosition.push(...[4.843899,37.552177,3.591400]);
+vertexPosition.push(...[-4.973658,36.397911,4.998043]);
+vertexPosition.push(...[-5.041076,41.746063,9.792142]);
+vertexPosition.push(...[4.770453,41.804314,9.865100]);
+vertexPosition.push(...[4.837870,36.456188,5.071013]);
+vertexPosition.push(...[-4.977558,34.970699,6.141570]);
+vertexPosition.push(...[-5.049199,38.932129,12.132613]);
+vertexPosition.push(...[4.762285,38.982971,12.216294]);
+vertexPosition.push(...[4.833925,35.021561,6.225270]);
+vertexPosition.push(...[-4.979131,33.300636,6.886887]);
+vertexPosition.push(...[-5.052692,35.617668,13.685165]);
+vertexPosition.push(...[4.758761,35.658627,13.777349]);
+vertexPosition.push(...[4.832321,33.341610,6.979091]);
+vertexPosition.push(...[-4.877220,31.496353,7.185510]);
+vertexPosition.push(...[-4.881922,31.501648,14.262846]);
+vertexPosition.push(...[4.860886,31.499958,14.268371]);
+vertexPosition.push(...[4.823025,31.501347,7.238055]);
+vertexPosition.push(...[-5.025615,57.295273,-3.906710]);
+vertexPosition.push(...[-4.982939,57.273983,-4.025499]);
+vertexPosition.push(...[-5.052344,57.201275,-4.074391]);
+vertexPosition.push(...[-4.273780,58.316875,-2.335119]);
+vertexPosition.push(...[-4.206726,58.350227,-2.306951]);
+vertexPosition.push(...[-4.223286,58.306042,-2.437683]);
+vertexPosition.push(...[3.884162,58.398212,-2.288989]);
+vertexPosition.push(...[3.951842,58.365665,-2.316268]);
+vertexPosition.push(...[3.902182,58.354332,-2.419648]);
+vertexPosition.push(...[4.730012,57.351833,-3.883042]);
+vertexPosition.push(...[4.759441,57.257801,-4.051451]);
+vertexPosition.push(...[4.688511,57.329727,-4.002952]);
+vertexPosition.push(...[-4.292055,58.397068,1.304841]);
+vertexPosition.push(...[-4.225259,58.420818,1.352615]);
+vertexPosition.push(...[-4.224420,58.428375,1.184210]);
+vertexPosition.push(...[-4.294427,58.402676,1.095091]);
+vertexPosition.push(...[-4.207900,58.372684,-2.080029]);
+vertexPosition.push(...[-4.207042,58.359177,-2.246593]);
+vertexPosition.push(...[-4.274418,58.337139,-2.197925]);
+vertexPosition.push(...[-4.278798,58.350002,-1.993366]);
+vertexPosition.push(...[-5.044599,57.785629,-0.301591]);
+vertexPosition.push(...[-5.020417,57.812931,-0.454479]);
+vertexPosition.push(...[-5.042917,57.780708,-0.603425]);
+vertexPosition.push(...[-5.071306,57.733398,-0.453287]);
+vertexPosition.push(...[3.866365,58.480854,1.213771]);
+vertexPosition.push(...[3.865525,58.473179,1.382071]);
+vertexPosition.push(...[3.932997,58.450298,1.335377]);
+vertexPosition.push(...[3.937618,58.455997,1.124425]);
+vertexPosition.push(...[4.711420,57.847126,-0.266456]);
+vertexPosition.push(...[4.740412,57.795227,-0.418432]);
+vertexPosition.push(...[4.712646,57.842159,-0.568447]);
+vertexPosition.push(...[4.688416,57.874084,-0.420768]);
+vertexPosition.push(...[3.882927,58.422260,-2.050255]);
+vertexPosition.push(...[3.953289,58.400539,-1.964090]);
+vertexPosition.push(...[3.951135,58.387600,-2.167304]);
+vertexPosition.push(...[3.883785,58.408794,-2.216895]);
+vertexPosition.push(...[-4.292360,58.388157,1.386092]);
+vertexPosition.push(...[-4.243201,58.380432,1.490612]);
+vertexPosition.push(...[-4.225271,58.420540,1.355103]);
+vertexPosition.push(...[-5.060851,57.420837,3.013479]);
+vertexPosition.push(...[-5.089138,57.333107,3.184689]);
+vertexPosition.push(...[-5.018147,57.404800,3.131824]);
+vertexPosition.push(...[4.722512,57.397045,3.232413]);
+vertexPosition.push(...[4.695096,57.484070,3.061940]);
+vertexPosition.push(...[4.651447,57.467793,3.178789]);
+vertexPosition.push(...[3.932663,58.440357,1.426022]);
+vertexPosition.push(...[3.865468,58.471886,1.393742]);
+vertexPosition.push(...[3.882655,58.431839,1.529398]);
+vertexPosition.push(...[3.165187,59.593727,-0.332537]);
+vertexPosition.push(...[3.863600,58.923756,1.206003]);
+vertexPosition.push(...[3.166285,59.590088,-0.549247]);
+vertexPosition.push(...[3.880162,58.865162,-2.058022]);
+vertexPosition.push(...[-3.520993,59.547756,-0.573744]);
+vertexPosition.push(...[-4.210665,58.815586,-2.087796]);
+vertexPosition.push(...[-3.522092,59.551701,-0.357082]);
+vertexPosition.push(...[-4.227185,58.871277,1.176443]);
+vertexPosition.push(...[-8.194743,13.520805,-21.475136]);
+vertexPosition.push(...[-8.194743,-2.868681,-21.475136]);
+vertexPosition.push(...[-8.194743,-2.868681,0.000000]);
+vertexPosition.push(...[-8.194743,-2.868680,21.475136]);
+vertexPosition.push(...[-8.194743,13.520805,0.000000]);
+vertexPosition.push(...[-36.712620,18.882654,-14.262239]);
+vertexPosition.push(...[-36.830276,18.972736,-7.423079]);
+vertexPosition.push(...[-36.769352,18.957548,14.168518]);
+vertexPosition.push(...[-36.742760,18.986740,7.168992]);
+vertexPosition.push(...[8.194743,-0.761597,13.545660]);
+vertexPosition.push(...[8.194743,-2.868680,13.545660]);
+vertexPosition.push(...[8.193458,-2.868680,13.545660]);
+vertexPosition.push(...[8.194743,0.966793,17.614248]);
+vertexPosition.push(...[8.194743,-0.761597,14.757133]);
+vertexPosition.push(...[8.194743,-0.457294,14.807632]);
+vertexPosition.push(...[8.194743,0.064672,16.805559]);
+vertexPosition.push(...[8.194743,-0.176057,16.998455]);
+vertexPosition.push(...[8.194743,-2.868680,14.757133]);
+vertexPosition.push(...[8.193458,-2.868680,14.757133]);
+vertexPosition.push(...[8.194743,-0.698969,17.163963]);
+vertexPosition.push(...[8.194743,-0.694368,18.358744]);
+vertexPosition.push(...[8.194743,3.605067,15.313311]);
+vertexPosition.push(...[8.194743,0.064985,15.126443]);
+vertexPosition.push(...[8.194743,3.585771,15.283530]);
+vertexPosition.push(...[8.194743,3.644953,16.412704]);
+vertexPosition.push(...[8.194743,1.524556,15.311218]);
+vertexPosition.push(...[8.194743,3.573575,15.275311]);
+vertexPosition.push(...[8.194743,0.905904,14.254360]);
+vertexPosition.push(...[8.194743,1.283167,14.743016]);
+vertexPosition.push(...[8.194743,3.691498,15.843094]);
+vertexPosition.push(...[8.194743,0.364389,15.660096]);
+vertexPosition.push(...[8.194743,3.688808,15.810102]);
+vertexPosition.push(...[8.194743,3.633187,16.447914]);
+vertexPosition.push(...[8.194743,0.248775,16.558044]);
+vertexPosition.push(...[8.194743,0.403578,15.965332]);
+vertexPosition.push(...[8.194743,3.605021,15.313240]);
+vertexPosition.push(...[8.194743,3.622968,16.465233]);
+vertexPosition.push(...[8.194743,3.585871,15.283685]);
+vertexPosition.push(...[8.193458,-2.868680,14.755025]);
+vertexPosition.push(...[8.194743,-0.763236,14.757133]);
+vertexPosition.push(...[8.194743,0.364235,16.272116]);
+vertexPosition.push(...[8.194743,3.692022,15.964274]);
+vertexPosition.push(...[8.194743,3.692025,15.964244]);
+vertexPosition.push(...[8.194743,0.966440,17.614544]);
+vertexPosition.push(...[8.194743,-0.150845,13.635560]);
+vertexPosition.push(...[8.194743,2.006647,16.527594]);
+vertexPosition.push(...[8.194743,-0.185440,14.929094]);
+vertexPosition.push(...[8.194743,0.983621,17.590738]);
+vertexPosition.push(...[8.194743,-0.175661,14.933462]);
+vertexPosition.push(...[8.194743,-0.573780,17.143314]);
+vertexPosition.push(...[8.194743,-0.175642,14.933478]);
+vertexPosition.push(...[8.194743,3.595870,16.499769]);
+vertexPosition.push(...[8.194743,-0.443588,17.117857]);
+vertexPosition.push(...[8.194743,-0.337399,18.308788]);
+vertexPosition.push(...[8.194743,0.239918,15.361813]);
+vertexPosition.push(...[8.194743,0.248992,15.374022]);
+vertexPosition.push(...[8.194743,3.693313,15.929746]);
+vertexPosition.push(...[8.194743,-0.694368,18.358744]);
+vertexPosition.push(...[8.194743,3.692079,15.870825]);
+vertexPosition.push(...[8.194743,-0.698969,17.163973]);
+vertexPosition.push(...[8.194743,3.691498,15.843094]);
+vertexPosition.push(...[8.194743,3.691498,15.843094]);
+vertexPosition.push(...[8.194743,0.417306,13.877028]);
+vertexPosition.push(...[8.194743,0.249012,15.374070]);
+vertexPosition.push(...[8.194743,3.692027,15.964177]);
+vertexPosition.push(...[8.194743,3.693305,15.929941]);
+vertexPosition.push(...[8.194743,3.688812,15.810157]);
+vertexPosition.push(...[8.194743,3.688808,15.810102]);
+vertexPosition.push(...[8.194743,3.688808,15.810102]);
+vertexPosition.push(...[8.194743,0.366041,16.258329]);
+vertexPosition.push(...[8.194743,0.403671,15.966058]);
+vertexPosition.push(...[8.194743,0.403668,15.966085]);
+vertexPosition.push(...[8.194743,3.618442,15.348396]);
+vertexPosition.push(...[8.194743,3.618329,15.348100]);
+vertexPosition.push(...[8.194743,1.546753,16.535645]);
+vertexPosition.push(...[8.194743,3.573759,15.275435]);
+vertexPosition.push(...[8.194743,0.364280,16.272009]);
+vertexPosition.push(...[8.194743,3.574128,15.275683]);
+vertexPosition.push(...[8.194743,3.644890,16.412891]);
+vertexPosition.push(...[8.194743,3.633487,16.447014]);
+vertexPosition.push(...[8.194743,0.819492,14.187626]);
+vertexPosition.push(...[8.194743,3.607885,16.490795]);
+vertexPosition.push(...[8.194743,-0.457754,17.124178]);
+vertexPosition.push(...[8.194743,3.688807,15.810097]);
+vertexPosition.push(...[8.194743,0.906107,14.254623]);
+vertexPosition.push(...[8.194743,1.256825,14.708898]);
+vertexPosition.push(...[8.194743,3.627490,15.407764]);
+vertexPosition.push(...[8.194743,1.283211,14.743121]);
+vertexPosition.push(...[8.194743,1.523766,15.309360]);
+vertexPosition.push(...[8.194743,-0.694368,18.358744]);
+vertexPosition.push(...[8.194743,0.492166,18.009045]);
+vertexPosition.push(...[8.194743,1.326113,17.112228]);
+vertexPosition.push(...[8.194743,-0.066896,18.270937]);
+
+indexes.push(...[5,10,6]);
+indexes.push(...[12,9,11]);
+indexes.push(...[8,11,7]);
+indexes.push(...[6,12,8]);
+indexes.push(...[7,9,5]);
+indexes.push(...[3,16,4]);
+indexes.push(...[19,24,20]);
+indexes.push(...[15,20,16]);
+indexes.push(...[23,28,24]);
+indexes.push(...[18,21,22]);
+indexes.push(...[31,36,32]);
+indexes.push(...[27,32,28]);
+indexes.push(...[81,116,97]);
+indexes.push(...[35,40,36]);
+indexes.push(...[44,47,48]);
+indexes.push(...[40,43,44]);
+indexes.push(...[45,52,49]);
+indexes.push(...[48,51,52]);
+indexes.push(...[56,59,60]);
+indexes.push(...[52,55,56]);
+indexes.push(...[49,56,53]);
+indexes.push(...[62,64,63]);
+indexes.push(...[60,63,64]);
+indexes.push(...[92,96,98]);
+indexes.push(...[95,72,99]);
+indexes.push(...[93,110,108]);
+indexes.push(...[34,75,35]);
+indexes.push(...[78,111,90]);
+indexes.push(...[39,75,94]);
+indexes.push(...[39,107,43]);
+indexes.push(...[69,100,71]);
+indexes.push(...[68,69,70]);
+indexes.push(...[71,72,73]);
+indexes.push(...[74,75,76]);
+indexes.push(...[77,79,80]);
+indexes.push(...[81,83,84]);
+indexes.push(...[89,91,92]);
+indexes.push(...[94,96,93]);
+indexes.push(...[97,99,100]);
+indexes.push(...[101,102,103]);
+indexes.push(...[107,108,109]);
+indexes.push(...[110,111,112]);
+indexes.push(...[81,80,79]);
+indexes.push(...[97,92,98]);
+indexes.push(...[93,92,91]);
+indexes.push(...[95,98,96]);
+indexes.push(...[71,70,69]);
+indexes.push(...[74,73,72]);
+indexes.push(...[90,79,78]);
+indexes.push(...[82,97,100]);
+indexes.push(...[69,83,82]);
+indexes.push(...[94,74,95]);
+indexes.push(...[71,99,72]);
+indexes.push(...[108,112,109]);
+indexes.push(...[103,112,111]);
+indexes.push(...[103,77,101]);
+indexes.push(...[94,108,107]);
+indexes.push(...[111,91,90]);
+indexes.push(...[79,118,81]);
+indexes.push(...[113,117,119]);
+indexes.push(...[89,120,79]);
+indexes.push(...[115,118,117]);
+indexes.push(...[115,114,116]);
+indexes.push(...[119,114,113]);
+indexes.push(...[117,120,119]);
+indexes.push(...[89,116,114]);
+indexes.push(...[125,123,128]);
+indexes.push(...[124,126,127]);
+indexes.push(...[2,124,1]);
+indexes.push(...[3,121,2]);
+indexes.push(...[126,4,127]);
+indexes.push(...[4,124,127]);
+indexes.push(...[5,122,125]);
+indexes.push(...[7,125,128]);
+indexes.push(...[8,122,6]);
+indexes.push(...[7,123,8]);
+indexes.push(...[133,138,134]);
+indexes.push(...[130,143,131]);
+indexes.push(...[140,137,139]);
+indexes.push(...[136,139,135]);
+indexes.push(...[134,140,136]);
+indexes.push(...[135,137,133]);
+indexes.push(...[141,148,145]);
+indexes.push(...[132,141,129]);
+indexes.push(...[131,144,132]);
+indexes.push(...[129,142,130]);
+indexes.push(...[147,152,148]);
+indexes.push(...[143,146,147]);
+indexes.push(...[143,148,144]);
+indexes.push(...[142,145,146]);
+indexes.push(...[151,156,152]);
+indexes.push(...[146,149,150]);
+indexes.push(...[148,149,145]);
+indexes.push(...[147,150,151]);
+indexes.push(...[156,157,153]);
+indexes.push(...[150,153,154]);
+indexes.push(...[152,153,149]);
+indexes.push(...[151,154,155]);
+indexes.push(...[159,164,160]);
+indexes.push(...[155,158,159]);
+indexes.push(...[155,160,156]);
+indexes.push(...[154,157,158]);
+indexes.push(...[162,165,166]);
+indexes.push(...[158,161,162]);
+indexes.push(...[160,161,157]);
+indexes.push(...[159,162,163]);
+indexes.push(...[165,172,169]);
+indexes.push(...[161,168,165]);
+indexes.push(...[225,246,244]);
+indexes.push(...[163,168,164]);
+indexes.push(...[172,175,176]);
+indexes.push(...[237,230,234]);
+indexes.push(...[168,171,172]);
+indexes.push(...[165,170,166]);
+indexes.push(...[173,180,177]);
+indexes.push(...[169,174,170]);
+indexes.push(...[169,176,173]);
+indexes.push(...[170,175,171]);
+indexes.push(...[178,183,179]);
+indexes.push(...[174,179,175]);
+indexes.push(...[176,179,180]);
+indexes.push(...[173,178,174]);
+indexes.push(...[184,187,188]);
+indexes.push(...[180,183,184]);
+indexes.push(...[177,182,178]);
+indexes.push(...[177,184,181]);
+indexes.push(...[188,189,185]);
+indexes.push(...[181,186,182]);
+indexes.push(...[181,188,185]);
+indexes.push(...[182,187,183]);
+indexes.push(...[190,192,191]);
+indexes.push(...[187,190,191]);
+indexes.push(...[188,191,192]);
+indexes.push(...[185,190,186]);
+indexes.push(...[198,204,194]);
+indexes.push(...[220,224,226]);
+indexes.push(...[223,200,227]);
+indexes.push(...[166,233,216]);
+indexes.push(...[213,229,205]);
+indexes.push(...[221,238,236]);
+indexes.push(...[163,195,203]);
+indexes.push(...[206,239,218]);
+indexes.push(...[166,195,162]);
+indexes.push(...[167,203,222]);
+indexes.push(...[171,233,170]);
+indexes.push(...[208,212,214]);
+indexes.push(...[167,235,171]);
+indexes.push(...[197,228,199]);
+indexes.push(...[193,194,195]);
+indexes.push(...[196,197,198]);
+indexes.push(...[199,200,201]);
+indexes.push(...[202,203,204]);
+indexes.push(...[205,207,208]);
+indexes.push(...[209,211,212]);
+indexes.push(...[214,216,213]);
+indexes.push(...[217,219,220]);
+indexes.push(...[222,224,221]);
+indexes.push(...[225,227,228]);
+indexes.push(...[229,230,231]);
+indexes.push(...[232,233,234]);
+indexes.push(...[235,236,237]);
+indexes.push(...[238,239,240]);
+indexes.push(...[213,208,214]);
+indexes.push(...[209,208,207]);
+indexes.push(...[215,212,211]);
+indexes.push(...[225,220,226]);
+indexes.push(...[221,220,219]);
+indexes.push(...[223,226,224]);
+indexes.push(...[193,198,194]);
+indexes.push(...[197,201,198]);
+indexes.push(...[202,201,200]);
+indexes.push(...[203,194,204]);
+indexes.push(...[218,207,206]);
+indexes.push(...[210,225,228]);
+indexes.push(...[197,211,210]);
+indexes.push(...[216,193,195]);
+indexes.push(...[222,202,223]);
+indexes.push(...[199,227,200]);
+indexes.push(...[232,230,229]);
+indexes.push(...[235,234,233]);
+indexes.push(...[236,240,237]);
+indexes.push(...[231,240,239]);
+indexes.push(...[216,232,213]);
+indexes.push(...[231,205,229]);
+indexes.push(...[222,236,235]);
+indexes.push(...[239,219,218]);
+indexes.push(...[196,215,211]);
+indexes.push(...[207,246,209]);
+indexes.push(...[241,245,247]);
+indexes.push(...[217,248,207]);
+indexes.push(...[245,244,246]);
+indexes.push(...[243,242,244]);
+indexes.push(...[247,242,241]);
+indexes.push(...[245,248,247]);
+indexes.push(...[217,244,242]);
+indexes.push(...[253,251,256]);
+indexes.push(...[252,254,255]);
+indexes.push(...[130,252,129]);
+indexes.push(...[131,249,130]);
+indexes.push(...[131,255,254]);
+indexes.push(...[132,252,255]);
+indexes.push(...[133,250,253]);
+indexes.push(...[135,253,256]);
+indexes.push(...[136,250,134]);
+indexes.push(...[135,251,136]);
+indexes.push(...[261,266,262]);
+indexes.push(...[258,271,259]);
+indexes.push(...[268,265,267]);
+indexes.push(...[264,267,263]);
+indexes.push(...[262,268,264]);
+indexes.push(...[263,265,261]);
+indexes.push(...[269,276,273]);
+indexes.push(...[260,269,257]);
+indexes.push(...[259,272,260]);
+indexes.push(...[257,270,258]);
+indexes.push(...[275,280,276]);
+indexes.push(...[270,275,271]);
+indexes.push(...[271,276,272]);
+indexes.push(...[270,273,274]);
+indexes.push(...[279,284,280]);
+indexes.push(...[274,277,278]);
+indexes.push(...[273,280,277]);
+indexes.push(...[274,279,275]);
+indexes.push(...[281,288,285]);
+indexes.push(...[278,281,282]);
+indexes.push(...[277,284,281]);
+indexes.push(...[278,283,279]);
+indexes.push(...[287,292,288]);
+indexes.push(...[282,287,283]);
+indexes.push(...[283,288,284]);
+indexes.push(...[282,285,286]);
+indexes.push(...[290,293,294]);
+indexes.push(...[286,289,290]);
+indexes.push(...[285,292,289]);
+indexes.push(...[286,291,287]);
+indexes.push(...[293,300,297]);
+indexes.push(...[289,296,293]);
+indexes.push(...[337,372,353]);
+indexes.push(...[291,296,292]);
+indexes.push(...[300,303,304]);
+indexes.push(...[365,358,362]);
+indexes.push(...[296,299,300]);
+indexes.push(...[293,298,294]);
+indexes.push(...[301,308,305]);
+indexes.push(...[297,302,298]);
+indexes.push(...[297,304,301]);
+indexes.push(...[298,303,299]);
+indexes.push(...[306,311,307]);
+indexes.push(...[302,307,303]);
+indexes.push(...[304,307,308]);
+indexes.push(...[301,306,302]);
+indexes.push(...[312,315,316]);
+indexes.push(...[308,311,312]);
+indexes.push(...[305,310,306]);
+indexes.push(...[305,312,309]);
+indexes.push(...[316,317,313]);
+indexes.push(...[309,314,310]);
+indexes.push(...[309,316,313]);
+indexes.push(...[310,315,311]);
+indexes.push(...[318,320,319]);
+indexes.push(...[315,318,319]);
+indexes.push(...[316,319,320]);
+indexes.push(...[313,318,314]);
+indexes.push(...[329,322,326]);
+indexes.push(...[348,352,354]);
+indexes.push(...[351,328,355]);
+indexes.push(...[294,361,344]);
+indexes.push(...[341,357,333]);
+indexes.push(...[349,366,364]);
+indexes.push(...[290,331,291]);
+indexes.push(...[334,367,346]);
+indexes.push(...[294,323,290]);
+indexes.push(...[295,331,350]);
+indexes.push(...[299,361,298]);
+indexes.push(...[336,340,342]);
+indexes.push(...[295,363,299]);
+indexes.push(...[325,356,327]);
+indexes.push(...[321,322,323]);
+indexes.push(...[324,325,326]);
+indexes.push(...[327,328,329]);
+indexes.push(...[330,331,332]);
+indexes.push(...[333,335,336]);
+indexes.push(...[337,339,340]);
+indexes.push(...[342,344,341]);
+indexes.push(...[345,347,348]);
+indexes.push(...[350,352,349]);
+indexes.push(...[353,355,356]);
+indexes.push(...[357,358,359]);
+indexes.push(...[360,361,362]);
+indexes.push(...[363,364,365]);
+indexes.push(...[366,367,368]);
+indexes.push(...[341,336,342]);
+indexes.push(...[337,336,335]);
+indexes.push(...[343,340,339]);
+indexes.push(...[353,348,354]);
+indexes.push(...[349,348,347]);
+indexes.push(...[351,354,352]);
+indexes.push(...[321,326,322]);
+indexes.push(...[327,326,325]);
+indexes.push(...[330,329,328]);
+indexes.push(...[323,332,331]);
+indexes.push(...[346,335,334]);
+indexes.push(...[338,353,356]);
+indexes.push(...[325,339,338]);
+indexes.push(...[344,321,323]);
+indexes.push(...[350,330,351]);
+indexes.push(...[327,355,328]);
+indexes.push(...[360,358,357]);
+indexes.push(...[363,362,361]);
+indexes.push(...[364,368,365]);
+indexes.push(...[359,368,367]);
+indexes.push(...[344,360,341]);
+indexes.push(...[359,333,357]);
+indexes.push(...[350,364,363]);
+indexes.push(...[367,347,346]);
+indexes.push(...[324,343,339]);
+indexes.push(...[335,374,337]);
+indexes.push(...[369,373,375]);
+indexes.push(...[345,376,335]);
+indexes.push(...[371,374,373]);
+indexes.push(...[371,370,372]);
+indexes.push(...[375,370,369]);
+indexes.push(...[373,376,375]);
+indexes.push(...[345,372,370]);
+indexes.push(...[381,379,384]);
+indexes.push(...[380,382,383]);
+indexes.push(...[258,380,257]);
+indexes.push(...[258,382,377]);
+indexes.push(...[382,260,383]);
+indexes.push(...[260,380,383]);
+indexes.push(...[261,378,381]);
+indexes.push(...[263,381,384]);
+indexes.push(...[264,378,262]);
+indexes.push(...[263,379,264]);
+indexes.push(...[395,390,393]);
+indexes.push(...[525,386,526]);
+indexes.push(...[394,405,387]);
+indexes.push(...[406,414,407]);
+indexes.push(...[399,419,401]);
+indexes.push(...[398,530,531]);
+indexes.push(...[400,399,402]);
+indexes.push(...[403,402,401]);
+indexes.push(...[404,403,398]);
+indexes.push(...[407,408,405]);
+indexes.push(...[406,409,410]);
+indexes.push(...[407,533,532]);
+indexes.push(...[412,411,409]);
+indexes.push(...[416,413,415]);
+indexes.push(...[411,415,410]);
+indexes.push(...[407,416,411]);
+indexes.push(...[410,413,406]);
+indexes.push(...[417,424,421]);
+indexes.push(...[403,417,398]);
+indexes.push(...[401,420,403]);
+indexes.push(...[398,418,399]);
+indexes.push(...[423,428,424]);
+indexes.push(...[418,423,419]);
+indexes.push(...[419,424,420]);
+indexes.push(...[418,421,422]);
+indexes.push(...[427,432,428]);
+indexes.push(...[422,425,426]);
+indexes.push(...[421,428,425]);
+indexes.push(...[422,427,423]);
+indexes.push(...[429,436,433]);
+indexes.push(...[426,429,430]);
+indexes.push(...[425,432,429]);
+indexes.push(...[426,431,427]);
+indexes.push(...[435,440,436]);
+indexes.push(...[430,435,431]);
+indexes.push(...[431,436,432]);
+indexes.push(...[430,433,434]);
+indexes.push(...[438,441,442]);
+indexes.push(...[434,437,438]);
+indexes.push(...[433,440,437]);
+indexes.push(...[434,439,435]);
+indexes.push(...[441,448,445]);
+indexes.push(...[437,444,441]);
+indexes.push(...[485,520,501]);
+indexes.push(...[439,444,440]);
+indexes.push(...[448,451,452]);
+indexes.push(...[513,506,510]);
+indexes.push(...[444,447,448]);
+indexes.push(...[441,446,442]);
+indexes.push(...[449,456,453]);
+indexes.push(...[445,450,446]);
+indexes.push(...[445,452,449]);
+indexes.push(...[446,451,447]);
+indexes.push(...[454,459,455]);
+indexes.push(...[450,455,451]);
+indexes.push(...[452,455,456]);
+indexes.push(...[449,454,450]);
+indexes.push(...[460,463,464]);
+indexes.push(...[456,459,460]);
+indexes.push(...[453,458,454]);
+indexes.push(...[453,460,457]);
+indexes.push(...[464,465,461]);
+indexes.push(...[457,462,458]);
+indexes.push(...[457,464,461]);
+indexes.push(...[458,463,459]);
+indexes.push(...[466,468,467]);
+indexes.push(...[463,466,467]);
+indexes.push(...[464,467,468]);
+indexes.push(...[461,466,462]);
+indexes.push(...[477,470,474]);
+indexes.push(...[496,500,502]);
+indexes.push(...[499,476,503]);
+indexes.push(...[442,509,492]);
+indexes.push(...[489,505,481]);
+indexes.push(...[497,514,512]);
+indexes.push(...[438,479,439]);
+indexes.push(...[482,515,494]);
+indexes.push(...[442,471,438]);
+indexes.push(...[443,479,498]);
+indexes.push(...[447,509,446]);
+indexes.push(...[484,488,490]);
+indexes.push(...[443,511,447]);
+indexes.push(...[473,504,475]);
+indexes.push(...[469,470,471]);
+indexes.push(...[472,473,474]);
+indexes.push(...[475,476,477]);
+indexes.push(...[478,479,480]);
+indexes.push(...[481,483,484]);
+indexes.push(...[485,487,488]);
+indexes.push(...[490,492,489]);
+indexes.push(...[493,495,496]);
+indexes.push(...[498,500,497]);
+indexes.push(...[501,503,504]);
+indexes.push(...[505,506,507]);
+indexes.push(...[508,509,510]);
+indexes.push(...[511,512,513]);
+indexes.push(...[514,515,516]);
+indexes.push(...[489,484,490]);
+indexes.push(...[485,484,483]);
+indexes.push(...[491,488,487]);
+indexes.push(...[501,496,502]);
+indexes.push(...[497,496,495]);
+indexes.push(...[499,502,500]);
+indexes.push(...[469,474,470]);
+indexes.push(...[475,474,473]);
+indexes.push(...[478,477,476]);
+indexes.push(...[471,480,479]);
+indexes.push(...[494,483,482]);
+indexes.push(...[486,501,504]);
+indexes.push(...[473,487,486]);
+indexes.push(...[492,469,471]);
+indexes.push(...[498,478,499]);
+indexes.push(...[475,503,476]);
+indexes.push(...[508,506,505]);
+indexes.push(...[511,510,509]);
+indexes.push(...[512,516,513]);
+indexes.push(...[507,516,515]);
+indexes.push(...[492,508,489]);
+indexes.push(...[507,481,505]);
+indexes.push(...[498,512,511]);
+indexes.push(...[515,495,494]);
+indexes.push(...[472,491,487]);
+indexes.push(...[483,522,485]);
+indexes.push(...[517,521,523]);
+indexes.push(...[493,524,483]);
+indexes.push(...[519,522,521]);
+indexes.push(...[519,518,520]);
+indexes.push(...[523,518,517]);
+indexes.push(...[521,524,523]);
+indexes.push(...[493,520,518]);
+indexes.push(...[531,400,397]);
+indexes.push(...[532,412,408]);
+indexes.push(...[387,528,388]);
+indexes.push(...[385,396,386]);
+indexes.push(...[386,527,526]);
+indexes.push(...[391,393,392]);
+indexes.push(...[385,404,394]);
+indexes.push(...[391,412,395]);
+indexes.push(...[395,409,394]);
+indexes.push(...[394,397,395]);
+indexes.push(...[389,402,385]);
+indexes.push(...[395,400,389]);
+indexes.push(...[387,408,391]);
+indexes.push(...[529,527,395]);
+indexes.push(...[393,528,392]);
+indexes.push(...[392,528,391]);
+indexes.push(...[525,526,389]);
+indexes.push(...[393,395,527]);
+indexes.push(...[389,526,390]);
+indexes.push(...[395,525,389]);
+indexes.push(...[390,527,393]);
+indexes.push(...[393,529,395]);
+indexes.push(...[2,536,535]);
+indexes.push(...[534,536,14]);
+indexes.push(...[17,13,538]);
+indexes.push(...[16,564,542]);
+indexes.push(...[536,2,1]);
+indexes.push(...[19,534,569]);
+indexes.push(...[18,14,17]);
+indexes.push(...[24,573,571]);
+indexes.push(...[587,19,569]);
+indexes.push(...[32,580,579]);
+indexes.push(...[25,21,575]);
+indexes.push(...[23,587,605]);
+indexes.push(...[610,31,27]);
+indexes.push(...[33,29,588]);
+indexes.push(...[35,31,613]);
+indexes.push(...[30,34,613]);
+indexes.push(...[44,594,596]);
+indexes.push(...[40,595,559]);
+indexes.push(...[606,112,102]);
+indexes.push(...[45,41,565]);
+indexes.push(...[42,599,616]);
+indexes.push(...[51,50,568]);
+indexes.push(...[47,616,572]);
+indexes.push(...[64,61,574]);
+indexes.push(...[60,607,577]);
+indexes.push(...[59,615,617]);
+indexes.push(...[614,63,578]);
+indexes.push(...[584,61,614]);
+indexes.push(...[560,66,70]);
+indexes.push(...[73,76,562]);
+indexes.push(...[77,567,566]);
+indexes.push(...[107,576,570]);
+indexes.push(...[583,84,585]);
+indexes.push(...[86,87,88]);
+indexes.push(...[80,590,589]);
+indexes.push(...[84,83,593]);
+indexes.push(...[598,597,70]);
+indexes.push(...[76,75,600]);
+indexes.push(...[603,604,102]);
+indexes.push(...[104,106,604]);
+indexes.push(...[109,576,107]);
+indexes.push(...[68,611,608]);
+indexes.push(...[13,539,538]);
+indexes.push(...[13,538,564]);
+indexes.push(...[536,14,563]);
+indexes.push(...[13,543,14]);
+indexes.push(...[17,13,14]);
+indexes.push(...[22,25,21]);
+indexes.push(...[605,552,26]);
+indexes.push(...[552,609,26]);
+indexes.push(...[610,553,30]);
+indexes.push(...[26,29,25]);
+indexes.push(...[34,37,33]);
+indexes.push(...[30,33,29]);
+indexes.push(...[612,30,553]);
+indexes.push(...[594,596,37]);
+indexes.push(...[559,555,33]);
+indexes.push(...[561,106,557]);
+indexes.push(...[37,42,41]);
+indexes.push(...[45,540,558]);
+indexes.push(...[41,46,45]);
+indexes.push(...[41,558,565]);
+indexes.push(...[568,50,537]);
+indexes.push(...[46,50,45]);
+indexes.push(...[49,54,53]);
+indexes.push(...[49,541,540]);
+indexes.push(...[57,544,574]);
+indexes.push(...[53,58,57]);
+indexes.push(...[577,541,53]);
+indexes.push(...[58,578,545]);
+indexes.push(...[584,544,57]);
+indexes.push(...[545,582,58]);
+indexes.push(...[66,548,562]);
+indexes.push(...[560,546,66]);
+indexes.push(...[38,105,42]);
+indexes.push(...[549,85,566]);
+indexes.push(...[67,550,551]);
+indexes.push(...[38,67,88]);
+indexes.push(...[583,86,554]);
+indexes.push(...[67,66,65]);
+indexes.push(...[85,88,86]);
+indexes.push(...[104,106,105]);
+indexes.push(...[589,85,590]);
+indexes.push(...[591,87,556]);
+indexes.push(...[585,554,86]);
+indexes.push(...[65,546,598]);
+indexes.push(...[602,548,66]);
+indexes.push(...[551,600,67]);
+indexes.push(...[65,88,67]);
+indexes.push(...[603,104,549]);
+indexes.push(...[104,557,106]);
+indexes.push(...[88,104,105]);
+indexes.push(...[611,608,87]);
+indexes.push(...[556,87,593]);
+indexes.push(...[536,563,528]);
+indexes.push(...[561,557,387]);
+indexes.push(...[525,389,526]);
+indexes.push(...[529,389,525]);
+indexes.push(...[5,9,10]);
+indexes.push(...[12,10,9]);
+indexes.push(...[8,12,11]);
+indexes.push(...[6,10,12]);
+indexes.push(...[7,11,9]);
+indexes.push(...[3,15,16]);
+indexes.push(...[19,23,24]);
+indexes.push(...[15,19,20]);
+indexes.push(...[23,27,28]);
+indexes.push(...[18,17,21]);
+indexes.push(...[31,35,36]);
+indexes.push(...[27,31,32]);
+indexes.push(...[81,118,116]);
+indexes.push(...[35,39,40]);
+indexes.push(...[44,43,47]);
+indexes.push(...[40,39,43]);
+indexes.push(...[45,48,52]);
+indexes.push(...[48,47,51]);
+indexes.push(...[56,55,59]);
+indexes.push(...[52,51,55]);
+indexes.push(...[49,52,56]);
+indexes.push(...[62,61,64]);
+indexes.push(...[60,59,63]);
+indexes.push(...[95,74,72]);
+indexes.push(...[93,91,110]);
+indexes.push(...[34,67,75]);
+indexes.push(...[78,103,111]);
+indexes.push(...[39,35,75]);
+indexes.push(...[39,94,107]);
+indexes.push(...[69,82,100]);
+indexes.push(...[77,78,79]);
+indexes.push(...[81,82,83]);
+indexes.push(...[89,90,91]);
+indexes.push(...[94,95,96]);
+indexes.push(...[97,98,99]);
+indexes.push(...[81,84,80]);
+indexes.push(...[97,89,92]);
+indexes.push(...[93,96,92]);
+indexes.push(...[95,99,98]);
+indexes.push(...[71,73,70]);
+indexes.push(...[74,76,73]);
+indexes.push(...[90,89,79]);
+indexes.push(...[82,81,97]);
+indexes.push(...[69,68,83]);
+indexes.push(...[94,75,74]);
+indexes.push(...[71,100,99]);
+indexes.push(...[108,110,112]);
+indexes.push(...[103,102,112]);
+indexes.push(...[103,78,77]);
+indexes.push(...[94,93,108]);
+indexes.push(...[111,110,91]);
+indexes.push(...[79,120,118]);
+indexes.push(...[113,115,117]);
+indexes.push(...[89,114,120]);
+indexes.push(...[115,116,118]);
+indexes.push(...[115,113,114]);
+indexes.push(...[119,120,114]);
+indexes.push(...[117,118,120]);
+indexes.push(...[89,97,116]);
+indexes.push(...[125,122,123]);
+indexes.push(...[124,121,126]);
+indexes.push(...[2,121,124]);
+indexes.push(...[3,126,121]);
+indexes.push(...[126,3,4]);
+indexes.push(...[4,1,124]);
+indexes.push(...[5,6,122]);
+indexes.push(...[7,5,125]);
+indexes.push(...[8,123,122]);
+indexes.push(...[7,128,123]);
+indexes.push(...[133,137,138]);
+indexes.push(...[130,142,143]);
+indexes.push(...[140,138,137]);
+indexes.push(...[136,140,139]);
+indexes.push(...[134,138,140]);
+indexes.push(...[135,139,137]);
+indexes.push(...[141,144,148]);
+indexes.push(...[132,144,141]);
+indexes.push(...[131,143,144]);
+indexes.push(...[129,141,142]);
+indexes.push(...[147,151,152]);
+indexes.push(...[143,142,146]);
+indexes.push(...[143,147,148]);
+indexes.push(...[142,141,145]);
+indexes.push(...[151,155,156]);
+indexes.push(...[146,145,149]);
+indexes.push(...[148,152,149]);
+indexes.push(...[147,146,150]);
+indexes.push(...[156,160,157]);
+indexes.push(...[150,149,153]);
+indexes.push(...[152,156,153]);
+indexes.push(...[151,150,154]);
+indexes.push(...[159,163,164]);
+indexes.push(...[155,154,158]);
+indexes.push(...[155,159,160]);
+indexes.push(...[154,153,157]);
+indexes.push(...[162,161,165]);
+indexes.push(...[158,157,161]);
+indexes.push(...[160,164,161]);
+indexes.push(...[159,158,162]);
+indexes.push(...[165,168,172]);
+indexes.push(...[161,164,168]);
+indexes.push(...[225,209,246]);
+indexes.push(...[163,167,168]);
+indexes.push(...[172,171,175]);
+indexes.push(...[237,240,230]);
+indexes.push(...[168,167,171]);
+indexes.push(...[165,169,170]);
+indexes.push(...[173,176,180]);
+indexes.push(...[169,173,174]);
+indexes.push(...[169,172,176]);
+indexes.push(...[170,174,175]);
+indexes.push(...[178,182,183]);
+indexes.push(...[174,178,179]);
+indexes.push(...[176,175,179]);
+indexes.push(...[173,177,178]);
+indexes.push(...[184,183,187]);
+indexes.push(...[180,179,183]);
+indexes.push(...[177,181,182]);
+indexes.push(...[177,180,184]);
+indexes.push(...[188,192,189]);
+indexes.push(...[181,185,186]);
+indexes.push(...[181,184,188]);
+indexes.push(...[182,186,187]);
+indexes.push(...[190,189,192]);
+indexes.push(...[187,186,190]);
+indexes.push(...[188,187,191]);
+indexes.push(...[185,189,190]);
+indexes.push(...[198,201,204]);
+indexes.push(...[223,202,200]);
+indexes.push(...[166,170,233]);
+indexes.push(...[213,232,229]);
+indexes.push(...[221,219,238]);
+indexes.push(...[163,162,195]);
+indexes.push(...[206,231,239]);
+indexes.push(...[166,216,195]);
+indexes.push(...[167,163,203]);
+indexes.push(...[171,235,233]);
+indexes.push(...[167,222,235]);
+indexes.push(...[197,210,228]);
+indexes.push(...[205,206,207]);
+indexes.push(...[209,210,211]);
+indexes.push(...[214,215,216]);
+indexes.push(...[217,218,219]);
+indexes.push(...[222,223,224]);
+indexes.push(...[225,226,227]);
+indexes.push(...[213,205,208]);
+indexes.push(...[209,212,208]);
+indexes.push(...[215,214,212]);
+indexes.push(...[225,217,220]);
+indexes.push(...[221,224,220]);
+indexes.push(...[223,227,226]);
+indexes.push(...[193,196,198]);
+indexes.push(...[197,199,201]);
+indexes.push(...[202,204,201]);
+indexes.push(...[203,195,194]);
+indexes.push(...[218,217,207]);
+indexes.push(...[210,209,225]);
+indexes.push(...[197,196,211]);
+indexes.push(...[216,215,193]);
+indexes.push(...[222,203,202]);
+indexes.push(...[199,228,227]);
+indexes.push(...[232,234,230]);
+indexes.push(...[235,237,234]);
+indexes.push(...[236,238,240]);
+indexes.push(...[231,230,240]);
+indexes.push(...[216,233,232]);
+indexes.push(...[231,206,205]);
+indexes.push(...[222,221,236]);
+indexes.push(...[239,238,219]);
+indexes.push(...[196,193,215]);
+indexes.push(...[207,248,246]);
+indexes.push(...[241,243,245]);
+indexes.push(...[217,242,248]);
+indexes.push(...[245,243,244]);
+indexes.push(...[243,241,242]);
+indexes.push(...[247,248,242]);
+indexes.push(...[245,246,248]);
+indexes.push(...[217,225,244]);
+indexes.push(...[253,250,251]);
+indexes.push(...[252,249,254]);
+indexes.push(...[130,249,252]);
+indexes.push(...[131,254,249]);
+indexes.push(...[131,132,255]);
+indexes.push(...[132,129,252]);
+indexes.push(...[133,134,250]);
+indexes.push(...[135,133,253]);
+indexes.push(...[136,251,250]);
+indexes.push(...[135,256,251]);
+indexes.push(...[261,265,266]);
+indexes.push(...[258,270,271]);
+indexes.push(...[268,266,265]);
+indexes.push(...[264,268,267]);
+indexes.push(...[262,266,268]);
+indexes.push(...[263,267,265]);
+indexes.push(...[269,272,276]);
+indexes.push(...[260,272,269]);
+indexes.push(...[259,271,272]);
+indexes.push(...[257,269,270]);
+indexes.push(...[275,279,280]);
+indexes.push(...[270,274,275]);
+indexes.push(...[271,275,276]);
+indexes.push(...[270,269,273]);
+indexes.push(...[279,283,284]);
+indexes.push(...[274,273,277]);
+indexes.push(...[273,276,280]);
+indexes.push(...[274,278,279]);
+indexes.push(...[281,284,288]);
+indexes.push(...[278,277,281]);
+indexes.push(...[277,280,284]);
+indexes.push(...[278,282,283]);
+indexes.push(...[287,291,292]);
+indexes.push(...[282,286,287]);
+indexes.push(...[283,287,288]);
+indexes.push(...[282,281,285]);
+indexes.push(...[290,289,293]);
+indexes.push(...[286,285,289]);
+indexes.push(...[285,288,292]);
+indexes.push(...[286,290,291]);
+indexes.push(...[293,296,300]);
+indexes.push(...[289,292,296]);
+indexes.push(...[337,374,372]);
+indexes.push(...[291,295,296]);
+indexes.push(...[300,299,303]);
+indexes.push(...[365,368,358]);
+indexes.push(...[296,295,299]);
+indexes.push(...[293,297,298]);
+indexes.push(...[301,304,308]);
+indexes.push(...[297,301,302]);
+indexes.push(...[297,300,304]);
+indexes.push(...[298,302,303]);
+indexes.push(...[306,310,311]);
+indexes.push(...[302,306,307]);
+indexes.push(...[304,303,307]);
+indexes.push(...[301,305,306]);
+indexes.push(...[312,311,315]);
+indexes.push(...[308,307,311]);
+indexes.push(...[305,309,310]);
+indexes.push(...[305,308,312]);
+indexes.push(...[316,320,317]);
+indexes.push(...[309,313,314]);
+indexes.push(...[309,312,316]);
+indexes.push(...[310,314,315]);
+indexes.push(...[318,317,320]);
+indexes.push(...[315,314,318]);
+indexes.push(...[316,315,319]);
+indexes.push(...[313,317,318]);
+indexes.push(...[329,332,322]);
+indexes.push(...[351,330,328]);
+indexes.push(...[294,298,361]);
+indexes.push(...[341,360,357]);
+indexes.push(...[349,347,366]);
+indexes.push(...[290,323,331]);
+indexes.push(...[334,359,367]);
+indexes.push(...[294,344,323]);
+indexes.push(...[295,291,331]);
+indexes.push(...[299,363,361]);
+indexes.push(...[295,350,363]);
+indexes.push(...[325,338,356]);
+indexes.push(...[333,334,335]);
+indexes.push(...[337,338,339]);
+indexes.push(...[342,343,344]);
+indexes.push(...[345,346,347]);
+indexes.push(...[350,351,352]);
+indexes.push(...[353,354,355]);
+indexes.push(...[341,333,336]);
+indexes.push(...[337,340,336]);
+indexes.push(...[343,342,340]);
+indexes.push(...[353,345,348]);
+indexes.push(...[349,352,348]);
+indexes.push(...[351,355,354]);
+indexes.push(...[321,324,326]);
+indexes.push(...[327,329,326]);
+indexes.push(...[330,332,329]);
+indexes.push(...[323,322,332]);
+indexes.push(...[346,345,335]);
+indexes.push(...[338,337,353]);
+indexes.push(...[325,324,339]);
+indexes.push(...[344,343,321]);
+indexes.push(...[350,331,330]);
+indexes.push(...[327,356,355]);
+indexes.push(...[360,362,358]);
+indexes.push(...[363,365,362]);
+indexes.push(...[364,366,368]);
+indexes.push(...[359,358,368]);
+indexes.push(...[344,361,360]);
+indexes.push(...[359,334,333]);
+indexes.push(...[350,349,364]);
+indexes.push(...[367,366,347]);
+indexes.push(...[324,321,343]);
+indexes.push(...[335,376,374]);
+indexes.push(...[369,371,373]);
+indexes.push(...[345,370,376]);
+indexes.push(...[371,372,374]);
+indexes.push(...[371,369,370]);
+indexes.push(...[375,376,370]);
+indexes.push(...[373,374,376]);
+indexes.push(...[345,353,372]);
+indexes.push(...[381,378,379]);
+indexes.push(...[380,377,382]);
+indexes.push(...[258,377,380]);
+indexes.push(...[258,259,382]);
+indexes.push(...[382,259,260]);
+indexes.push(...[260,257,380]);
+indexes.push(...[261,262,378]);
+indexes.push(...[263,261,381]);
+indexes.push(...[264,379,378]);
+indexes.push(...[263,384,379]);
+indexes.push(...[395,389,390]);
+indexes.push(...[525,385,386]);
+indexes.push(...[394,409,405]);
+indexes.push(...[406,413,414]);
+indexes.push(...[399,418,419]);
+indexes.push(...[398,399,530]);
+indexes.push(...[530,399,400]);
+indexes.push(...[399,401,402]);
+indexes.push(...[403,404,402]);
+indexes.push(...[531,397,398]);
+indexes.push(...[397,404,398]);
+indexes.push(...[405,406,407]);
+indexes.push(...[407,532,408]);
+indexes.push(...[406,405,409]);
+indexes.push(...[407,411,533]);
+indexes.push(...[533,411,412]);
+indexes.push(...[411,410,409]);
+indexes.push(...[416,414,413]);
+indexes.push(...[411,416,415]);
+indexes.push(...[407,414,416]);
+indexes.push(...[410,415,413]);
+indexes.push(...[417,420,424]);
+indexes.push(...[403,420,417]);
+indexes.push(...[401,419,420]);
+indexes.push(...[398,417,418]);
+indexes.push(...[423,427,428]);
+indexes.push(...[418,422,423]);
+indexes.push(...[419,423,424]);
+indexes.push(...[418,417,421]);
+indexes.push(...[427,431,432]);
+indexes.push(...[422,421,425]);
+indexes.push(...[421,424,428]);
+indexes.push(...[422,426,427]);
+indexes.push(...[429,432,436]);
+indexes.push(...[426,425,429]);
+indexes.push(...[425,428,432]);
+indexes.push(...[426,430,431]);
+indexes.push(...[435,439,440]);
+indexes.push(...[430,434,435]);
+indexes.push(...[431,435,436]);
+indexes.push(...[430,429,433]);
+indexes.push(...[438,437,441]);
+indexes.push(...[434,433,437]);
+indexes.push(...[433,436,440]);
+indexes.push(...[434,438,439]);
+indexes.push(...[441,444,448]);
+indexes.push(...[437,440,444]);
+indexes.push(...[485,522,520]);
+indexes.push(...[439,443,444]);
+indexes.push(...[448,447,451]);
+indexes.push(...[513,516,506]);
+indexes.push(...[444,443,447]);
+indexes.push(...[441,445,446]);
+indexes.push(...[449,452,456]);
+indexes.push(...[445,449,450]);
+indexes.push(...[445,448,452]);
+indexes.push(...[446,450,451]);
+indexes.push(...[454,458,459]);
+indexes.push(...[450,454,455]);
+indexes.push(...[452,451,455]);
+indexes.push(...[449,453,454]);
+indexes.push(...[460,459,463]);
+indexes.push(...[456,455,459]);
+indexes.push(...[453,457,458]);
+indexes.push(...[453,456,460]);
+indexes.push(...[464,468,465]);
+indexes.push(...[457,461,462]);
+indexes.push(...[457,460,464]);
+indexes.push(...[458,462,463]);
+indexes.push(...[466,465,468]);
+indexes.push(...[463,462,466]);
+indexes.push(...[464,463,467]);
+indexes.push(...[461,465,466]);
+indexes.push(...[477,480,470]);
+indexes.push(...[499,478,476]);
+indexes.push(...[442,446,509]);
+indexes.push(...[489,508,505]);
+indexes.push(...[497,495,514]);
+indexes.push(...[438,471,479]);
+indexes.push(...[482,507,515]);
+indexes.push(...[442,492,471]);
+indexes.push(...[443,439,479]);
+indexes.push(...[447,511,509]);
+indexes.push(...[443,498,511]);
+indexes.push(...[473,486,504]);
+indexes.push(...[481,482,483]);
+indexes.push(...[485,486,487]);
+indexes.push(...[490,491,492]);
+indexes.push(...[493,494,495]);
+indexes.push(...[498,499,500]);
+indexes.push(...[501,502,503]);
+indexes.push(...[489,481,484]);
+indexes.push(...[485,488,484]);
+indexes.push(...[491,490,488]);
+indexes.push(...[501,493,496]);
+indexes.push(...[497,500,496]);
+indexes.push(...[499,503,502]);
+indexes.push(...[469,472,474]);
+indexes.push(...[475,477,474]);
+indexes.push(...[478,480,477]);
+indexes.push(...[471,470,480]);
+indexes.push(...[494,493,483]);
+indexes.push(...[486,485,501]);
+indexes.push(...[473,472,487]);
+indexes.push(...[492,491,469]);
+indexes.push(...[498,479,478]);
+indexes.push(...[475,504,503]);
+indexes.push(...[508,510,506]);
+indexes.push(...[511,513,510]);
+indexes.push(...[512,514,516]);
+indexes.push(...[507,506,516]);
+indexes.push(...[492,509,508]);
+indexes.push(...[507,482,481]);
+indexes.push(...[498,497,512]);
+indexes.push(...[515,514,495]);
+indexes.push(...[472,469,491]);
+indexes.push(...[483,524,522]);
+indexes.push(...[517,519,521]);
+indexes.push(...[493,518,524]);
+indexes.push(...[519,520,522]);
+indexes.push(...[519,517,518]);
+indexes.push(...[523,524,518]);
+indexes.push(...[521,522,524]);
+indexes.push(...[493,501,520]);
+indexes.push(...[531,530,400]);
+indexes.push(...[532,533,412]);
+indexes.push(...[387,391,528]);
+indexes.push(...[385,394,396]);
+indexes.push(...[386,396,527]);
+indexes.push(...[391,395,393]);
+indexes.push(...[385,402,404]);
+indexes.push(...[391,408,412]);
+indexes.push(...[395,412,409]);
+indexes.push(...[394,404,397]);
+indexes.push(...[389,400,402]);
+indexes.push(...[395,397,400]);
+indexes.push(...[387,405,408]);
+indexes.push(...[393,527,528]);
+indexes.push(...[395,529,525]);
+indexes.push(...[390,526,527]);
+indexes.push(...[393,527,529]);
+indexes.push(...[535,534,15]);
+indexes.push(...[15,3,535]);
+indexes.push(...[3,2,535]);
+indexes.push(...[534,535,536]);
+indexes.push(...[538,16,20]);
+indexes.push(...[20,17,538]);
+indexes.push(...[542,543,1]);
+indexes.push(...[1,4,542]);
+indexes.push(...[4,16,542]);
+indexes.push(...[16,538,564]);
+indexes.push(...[543,563,1]);
+indexes.push(...[563,536,1]);
+indexes.push(...[19,15,534]);
+indexes.push(...[571,21,17]);
+indexes.push(...[17,20,571]);
+indexes.push(...[20,24,571]);
+indexes.push(...[587,23,19]);
+indexes.push(...[579,29,25]);
+indexes.push(...[25,28,579]);
+indexes.push(...[28,32,579]);
+indexes.push(...[575,573,24]);
+indexes.push(...[24,28,575]);
+indexes.push(...[28,25,575]);
+indexes.push(...[605,26,27]);
+indexes.push(...[27,23,605]);
+indexes.push(...[610,30,31]);
+indexes.push(...[27,26,609]);
+indexes.push(...[609,610,27]);
+indexes.push(...[580,32,588]);
+indexes.push(...[32,36,588]);
+indexes.push(...[36,33,588]);
+indexes.push(...[31,30,612]);
+indexes.push(...[613,34,35]);
+indexes.push(...[31,612,613]);
+indexes.push(...[595,40,596]);
+indexes.push(...[40,44,596]);
+indexes.push(...[44,601,594]);
+indexes.push(...[559,33,36]);
+indexes.push(...[36,40,559]);
+indexes.push(...[606,109,112]);
+indexes.push(...[102,106,561]);
+indexes.push(...[561,606,102]);
+indexes.push(...[601,44,565]);
+indexes.push(...[44,48,565]);
+indexes.push(...[48,45,565]);
+indexes.push(...[616,47,43]);
+indexes.push(...[616,43,42]);
+indexes.push(...[615,55,568]);
+indexes.push(...[55,51,568]);
+indexes.push(...[572,46,50]);
+indexes.push(...[50,51,572]);
+indexes.push(...[51,47,572]);
+indexes.push(...[607,60,574]);
+indexes.push(...[60,64,574]);
+indexes.push(...[61,57,574]);
+indexes.push(...[577,53,56]);
+indexes.push(...[56,60,577]);
+indexes.push(...[59,55,615]);
+indexes.push(...[58,582,614]);
+indexes.push(...[614,62,63]);
+indexes.push(...[63,59,578]);
+indexes.push(...[59,617,578]);
+indexes.push(...[578,58,614]);
+indexes.push(...[584,57,61]);
+indexes.push(...[61,62,614]);
+indexes.push(...[560,70,562]);
+indexes.push(...[70,73,562]);
+indexes.push(...[76,66,562]);
+indexes.push(...[566,85,104]);
+indexes.push(...[104,101,566]);
+indexes.push(...[101,77,566]);
+indexes.push(...[570,105,42]);
+indexes.push(...[42,43,570]);
+indexes.push(...[43,107,570]);
+indexes.push(...[583,581,80]);
+indexes.push(...[84,586,585]);
+indexes.push(...[585,86,583]);
+indexes.push(...[583,80,84]);
+indexes.push(...[567,77,80]);
+indexes.push(...[80,581,590]);
+indexes.push(...[589,567,80]);
+indexes.push(...[591,586,84]);
+indexes.push(...[83,592,593]);
+indexes.push(...[593,87,591]);
+indexes.push(...[591,84,593]);
+indexes.push(...[597,68,70]);
+indexes.push(...[70,66,598]);
+indexes.push(...[66,65,598]);
+indexes.push(...[602,66,76]);
+indexes.push(...[75,67,600]);
+indexes.push(...[600,602,76]);
+indexes.push(...[101,104,603]);
+indexes.push(...[604,106,102]);
+indexes.push(...[101,603,102]);
+indexes.push(...[109,606,576]);
+indexes.push(...[608,592,83]);
+indexes.push(...[83,68,608]);
+indexes.push(...[68,597,611]);
+indexes.push(...[13,17,539]);
+indexes.push(...[542,543,564]);
+indexes.push(...[543,13,564]);
+indexes.push(...[571,539,17]);
+indexes.push(...[579,547,25]);
+indexes.push(...[22,26,25]);
+indexes.push(...[25,547,575]);
+indexes.push(...[26,30,29]);
+indexes.push(...[34,38,37]);
+indexes.push(...[30,34,33]);
+indexes.push(...[33,555,588]);
+indexes.push(...[613,550,34]);
+indexes.push(...[37,38,42]);
+indexes.push(...[45,49,540]);
+indexes.push(...[41,42,46]);
+indexes.push(...[41,45,558]);
+indexes.push(...[572,537,50]);
+indexes.push(...[49,50,54]);
+indexes.push(...[49,53,541]);
+indexes.push(...[53,54,58]);
+indexes.push(...[38,88,105]);
+indexes.push(...[549,104,85]);
+indexes.push(...[67,34,550]);
+indexes.push(...[38,34,67]);
+indexes.push(...[570,599,42]);
+indexes.push(...[65,66,546]);
+indexes.push(...[65,87,88]);
+indexes.push(...[104,604,557]);
+indexes.push(...[88,85,104]);
+indexes.push(...[543,542,388]);
+indexes.push(...[388,528,543]);
+indexes.push(...[528,527,536]);
+indexes.push(...[543,528,563]);
+indexes.push(...[527,396,536]);
+indexes.push(...[396,535,536]);
+indexes.push(...[616,599,570]);
+indexes.push(...[616,570,572]);
+indexes.push(...[570,576,572]);
+indexes.push(...[537,572,576]);
+indexes.push(...[568,537,576]);
+indexes.push(...[615,568,576]);
+indexes.push(...[557,604,549]);
+indexes.push(...[604,603,549]);
+indexes.push(...[589,590,387]);
+indexes.push(...[590,581,387]);
+indexes.push(...[554,585,586]);
+indexes.push(...[556,593,592]);
+indexes.push(...[597,598,546]);
+indexes.push(...[546,560,562]);
+indexes.push(...[548,602,600]);
+indexes.push(...[546,562,548]);
+indexes.push(...[548,600,551]);
+indexes.push(...[551,550,613]);
+indexes.push(...[551,613,612]);
+indexes.push(...[551,612,553]);
+indexes.push(...[551,553,610]);
+indexes.push(...[551,610,609]);
+indexes.push(...[551,609,552]);
+indexes.push(...[551,552,396]);
+indexes.push(...[552,605,396]);
+indexes.push(...[605,587,396]);
+indexes.push(...[534,535,396]);
+indexes.push(...[396,394,551]);
+indexes.push(...[394,387,597]);
+indexes.push(...[548,394,546]);
+indexes.push(...[388,542,544]);
+indexes.push(...[542,564,544]);
+indexes.push(...[564,538,544]);
+indexes.push(...[538,539,574]);
+indexes.push(...[571,573,575]);
+indexes.push(...[538,574,544]);
+indexes.push(...[539,571,577]);
+indexes.push(...[569,534,396]);
+indexes.push(...[587,569,396]);
+indexes.push(...[571,575,541]);
+indexes.push(...[575,547,540]);
+indexes.push(...[547,579,540]);
+indexes.push(...[579,580,555]);
+indexes.push(...[540,579,558]);
+indexes.push(...[580,588,555]);
+indexes.push(...[559,595,596]);
+indexes.push(...[555,559,594]);
+indexes.push(...[575,540,541]);
+indexes.push(...[548,551,394]);
+indexes.push(...[579,555,594]);
+indexes.push(...[558,594,565]);
+indexes.push(...[559,596,594]);
+indexes.push(...[594,601,565]);
+indexes.push(...[541,577,571]);
+indexes.push(...[577,607,574]);
+indexes.push(...[577,574,539]);
+indexes.push(...[579,594,558]);
+indexes.push(...[546,394,597]);
+indexes.push(...[611,597,387]);
+indexes.push(...[388,544,584]);
+indexes.push(...[608,611,387]);
+indexes.push(...[591,556,592]);
+indexes.push(...[592,608,387]);
+indexes.push(...[614,582,545]);
+indexes.push(...[583,554,586]);
+indexes.push(...[586,591,387]);
+indexes.push(...[591,592,387]);
+indexes.push(...[584,614,545]);
+indexes.push(...[545,578,388]);
+indexes.push(...[578,617,388]);
+indexes.push(...[388,584,545]);
+indexes.push(...[581,583,387]);
+indexes.push(...[583,586,387]);
+indexes.push(...[387,388,615]);
+indexes.push(...[388,617,615]);
+indexes.push(...[567,589,387]);
+indexes.push(...[387,615,576]);
+indexes.push(...[566,567,387]);
+indexes.push(...[549,566,387]);
+indexes.push(...[387,576,606]);
+indexes.push(...[387,606,561]);
+indexes.push(...[557,549,387]);
+indexes.push(...[529,395,389]);
+
+  
+  //
+  for(let i=0;i<vertexPosition.length;i=i+9)
+  {
+    vertexNormal.push(...createNormal(vertexPosition[i+0],vertexPosition[i+1],vertexPosition[i+2],vertexPosition[i+3],vertexPosition[i+4],vertexPosition[i+5],vertexPosition[i+6],vertexPosition[i+7],vertexPosition[i+8]));
+  }
+  
+
+  return [indexes, vertexPosition, vertexNormal];
+}
+
+function CreateHouse()
+{
+  //Opis sceny 3D, położenie punktów w przestrzeni 3D w formacie X,Y,Z 
+  let vertexPosition = []; //3 punkty po 3 składowe - X1,Y1,Z1, X2,Y2,Z2, X3,Y3,Z3 - 1 trójkąt
+  let vertexNormal = [];
+  let indexes =[];
+
+  vertexPosition.push(...[0,0,0]);
+vertexPosition.push(...[1.269408,3.391185,-3.245408]);
+vertexPosition.push(...[0.341047,3.391185,-3.245408]);
+vertexPosition.push(...[0.379337,3.391185,-2.830645]);
+vertexPosition.push(...[1.231119,3.391185,-2.830645]);
+vertexPosition.push(...[2.994200,2.468051,-3.205451]);
+vertexPosition.push(...[-1.272840,2.468051,-3.205451]);
+vertexPosition.push(...[-1.272840,2.480831,-3.205451]);
+vertexPosition.push(...[2.994200,2.480831,-3.205451]);
+vertexPosition.push(...[-1.272840,0.151741,-0.889141]);
+vertexPosition.push(...[-1.272840,2.468051,-0.889141]);
+vertexPosition.push(...[-1.272840,0.151742,-3.205451]);
+vertexPosition.push(...[2.994200,0.151742,-3.205451]);
+vertexPosition.push(...[2.994200,0.151741,-0.889141]);
+vertexPosition.push(...[2.994200,2.468051,-0.889141]);
+vertexPosition.push(...[2.994200,2.480831,-0.889141]);
+vertexPosition.push(...[-1.272840,2.480831,-0.889141]);
+vertexPosition.push(...[1.834321,3.640710,-2.045573]);
+vertexPosition.push(...[-0.112961,3.640710,-2.045573]);
+vertexPosition.push(...[-0.112961,3.640710,-2.049020]);
+vertexPosition.push(...[1.834321,3.640710,-2.049020]);
+vertexPosition.push(...[-0.930545,1.138362,-0.831502]);
+vertexPosition.push(...[-0.930545,1.785773,-0.831502]);
+vertexPosition.push(...[-0.927903,1.810810,-1.496901]);
+vertexPosition.push(...[-0.927903,1.163399,-1.496901]);
+vertexPosition.push(...[-0.280492,1.810810,-1.496901]);
+vertexPosition.push(...[-0.280492,1.163399,-1.496901]);
+vertexPosition.push(...[-0.283134,1.785773,-0.831502]);
+vertexPosition.push(...[-0.283134,1.138362,-0.831502]);
+vertexPosition.push(...[0.135927,0.153677,-1.048853]);
+vertexPosition.push(...[0.135927,1.916394,-1.048853]);
+vertexPosition.push(...[0.135927,1.916394,-0.841675]);
+vertexPosition.push(...[0.135927,0.153677,-0.841675]);
+vertexPosition.push(...[1.169574,1.916394,-0.841675]);
+vertexPosition.push(...[1.169574,0.153677,-0.841675]);
+vertexPosition.push(...[1.169574,1.916394,-1.048853]);
+vertexPosition.push(...[1.169574,0.153677,-1.048853]);
+vertexPosition.push(...[1.783765,1.045610,-0.889141]);
+vertexPosition.push(...[1.783765,1.045610,-0.835935]);
+vertexPosition.push(...[1.783765,1.897392,-0.835935]);
+vertexPosition.push(...[1.783765,1.897392,-0.889141]);
+vertexPosition.push(...[2.635547,1.897392,-0.889141]);
+vertexPosition.push(...[2.635547,1.897392,-0.835935]);
+vertexPosition.push(...[2.635547,1.045610,-0.835935]);
+vertexPosition.push(...[2.635547,1.045610,-0.889141]);
+vertexPosition.push(...[0.361408,2.484016,-3.202266]);
+vertexPosition.push(...[0.379337,2.848779,-2.837503]);
+vertexPosition.push(...[1.249048,2.484016,-3.202266]);
+vertexPosition.push(...[1.231119,2.845980,-2.840302]);
+vertexPosition.push(...[2.231562,1.464386,-0.835935]);
+vertexPosition.push(...[2.231562,1.464386,-0.849658]);
+vertexPosition.push(...[2.231562,1.816717,-0.849658]);
+vertexPosition.push(...[2.231562,1.816717,-0.835935]);
+vertexPosition.push(...[2.601582,1.816717,-0.849658]);
+vertexPosition.push(...[2.601582,1.464386,-0.849658]);
+vertexPosition.push(...[2.601582,1.464386,-0.835935]);
+vertexPosition.push(...[2.601582,1.816717,-0.835935]);
+vertexPosition.push(...[1.826962,1.464386,-0.848654]);
+vertexPosition.push(...[1.826962,1.816717,-0.848654]);
+vertexPosition.push(...[1.826962,1.816717,-0.835935]);
+vertexPosition.push(...[1.826962,1.464386,-0.835935]);
+vertexPosition.push(...[2.196982,1.816717,-0.848654]);
+vertexPosition.push(...[2.196982,1.464386,-0.848654]);
+vertexPosition.push(...[2.196982,1.464386,-0.835935]);
+vertexPosition.push(...[2.196982,1.816717,-0.835935]);
+vertexPosition.push(...[2.231562,1.074684,-0.857234]);
+vertexPosition.push(...[2.231562,1.427015,-0.857234]);
+vertexPosition.push(...[2.231562,1.427015,-0.835935]);
+vertexPosition.push(...[2.231562,1.074684,-0.835935]);
+vertexPosition.push(...[2.601582,1.427015,-0.857234]);
+vertexPosition.push(...[2.601582,1.074684,-0.857234]);
+vertexPosition.push(...[2.601582,1.074684,-0.835935]);
+vertexPosition.push(...[2.601582,1.427015,-0.835935]);
+vertexPosition.push(...[2.236120,1.427015,-0.835935]);
+vertexPosition.push(...[1.827291,1.074673,-0.849451]);
+vertexPosition.push(...[1.827291,1.427004,-0.849451]);
+vertexPosition.push(...[1.827291,1.427004,-0.835935]);
+vertexPosition.push(...[1.827291,1.074673,-0.835935]);
+vertexPosition.push(...[2.197311,1.427004,-0.849451]);
+vertexPosition.push(...[2.197311,1.074673,-0.849451]);
+vertexPosition.push(...[2.197311,1.074673,-0.835935]);
+vertexPosition.push(...[2.197311,1.427004,-0.835935]);
+vertexPosition.push(...[-0.587617,1.500934,-0.847567]);
+vertexPosition.push(...[-0.587617,1.749250,-0.847567]);
+vertexPosition.push(...[-0.587617,1.749250,-0.831502]);
+vertexPosition.push(...[-0.587617,1.500934,-0.831502]);
+vertexPosition.push(...[-0.326834,1.749250,-0.847567]);
+vertexPosition.push(...[-0.326834,1.500934,-0.847567]);
+vertexPosition.push(...[-0.326834,1.500934,-0.831502]);
+vertexPosition.push(...[-0.326834,1.749250,-0.831502]);
+vertexPosition.push(...[-0.904125,1.500934,-0.847567]);
+vertexPosition.push(...[-0.904125,1.749250,-0.847567]);
+vertexPosition.push(...[-0.904125,1.749250,-0.831502]);
+vertexPosition.push(...[-0.904125,1.500934,-0.831502]);
+vertexPosition.push(...[-0.643342,1.749250,-0.847567]);
+vertexPosition.push(...[-0.643342,1.500934,-0.847567]);
+vertexPosition.push(...[-0.643342,1.500934,-0.831502]);
+vertexPosition.push(...[-0.643342,1.749250,-0.831502]);
+vertexPosition.push(...[-0.587617,1.195294,-0.847567]);
+vertexPosition.push(...[-0.587617,1.443610,-0.847567]);
+vertexPosition.push(...[-0.587617,1.443610,-0.831502]);
+vertexPosition.push(...[-0.587617,1.195294,-0.831502]);
+vertexPosition.push(...[-0.326834,1.443610,-0.847567]);
+vertexPosition.push(...[-0.326834,1.195294,-0.847567]);
+vertexPosition.push(...[-0.326834,1.195294,-0.831502]);
+vertexPosition.push(...[-0.326834,1.443610,-0.831502]);
+vertexPosition.push(...[-0.893295,1.195294,-0.847567]);
+vertexPosition.push(...[-0.893295,1.443610,-0.847567]);
+vertexPosition.push(...[-0.893295,1.443610,-0.831502]);
+vertexPosition.push(...[-0.893295,1.195294,-0.831502]);
+vertexPosition.push(...[-0.632511,1.443610,-0.847567]);
+vertexPosition.push(...[-0.632511,1.195294,-0.847567]);
+vertexPosition.push(...[-0.632511,1.195294,-0.831502]);
+vertexPosition.push(...[-0.632511,1.443610,-0.831502]);
+
+indexes.push(...[1,3,4]);
+indexes.push(...[6,8,5]);
+indexes.push(...[10,11,9]);
+indexes.push(...[12,9,11]);
+indexes.push(...[5,13,12]);
+indexes.push(...[6,12,11]);
+indexes.push(...[5,15,14]);
+indexes.push(...[10,7,6]);
+indexes.push(...[18,20,17]);
+indexes.push(...[19,15,20]);
+indexes.push(...[14,16,10]);
+indexes.push(...[22,24,21]);
+indexes.push(...[23,26,24]);
+indexes.push(...[26,27,28]);
+indexes.push(...[24,28,21]);
+indexes.push(...[23,27,25]);
+indexes.push(...[30,32,29]);
+indexes.push(...[31,34,32]);
+indexes.push(...[33,36,34]);
+indexes.push(...[35,29,36]);
+indexes.push(...[34,29,32]);
+indexes.push(...[31,35,33]);
+indexes.push(...[38,40,37]);
+indexes.push(...[42,44,41]);
+indexes.push(...[38,44,43]);
+indexes.push(...[39,41,40]);
+indexes.push(...[44,14,41]);
+indexes.push(...[10,37,40]);
+indexes.push(...[17,20,8]);
+indexes.push(...[20,15,8]);
+indexes.push(...[19,18,16]);
+indexes.push(...[18,7,16]);
+indexes.push(...[2,46,3]);
+indexes.push(...[1,45,2]);
+indexes.push(...[1,48,47]);
+indexes.push(...[4,46,48]);
+indexes.push(...[7,46,45]);
+indexes.push(...[8,47,48]);
+indexes.push(...[50,52,49]);
+indexes.push(...[54,56,53]);
+indexes.push(...[54,51,50]);
+indexes.push(...[54,49,55]);
+indexes.push(...[51,56,52]);
+indexes.push(...[42,55,43]);
+indexes.push(...[58,60,57]);
+indexes.push(...[62,64,61]);
+indexes.push(...[62,58,57]);
+indexes.push(...[62,60,63]);
+indexes.push(...[61,59,58]);
+indexes.push(...[49,64,63]);
+indexes.push(...[66,68,65]);
+indexes.push(...[70,72,69]);
+indexes.push(...[70,66,65]);
+indexes.push(...[70,68,71]);
+indexes.push(...[69,72,73]);
+indexes.push(...[55,73,72]);
+indexes.push(...[75,77,74]);
+indexes.push(...[79,81,78]);
+indexes.push(...[79,75,74]);
+indexes.push(...[79,77,80]);
+indexes.push(...[78,76,75]);
+indexes.push(...[38,80,77]);
+indexes.push(...[68,81,80]);
+indexes.push(...[83,85,82]);
+indexes.push(...[87,89,86]);
+indexes.push(...[87,83,82]);
+indexes.push(...[87,85,88]);
+indexes.push(...[83,89,84]);
+indexes.push(...[27,84,89]);
+indexes.push(...[91,93,90]);
+indexes.push(...[95,97,94]);
+indexes.push(...[95,91,90]);
+indexes.push(...[95,93,96]);
+indexes.push(...[94,92,91]);
+indexes.push(...[84,22,97]);
+indexes.push(...[99,101,98]);
+indexes.push(...[103,105,102]);
+indexes.push(...[103,99,98]);
+indexes.push(...[103,101,104]);
+indexes.push(...[102,100,99]);
+indexes.push(...[88,100,105]);
+indexes.push(...[107,109,106]);
+indexes.push(...[111,113,110]);
+indexes.push(...[111,107,106]);
+indexes.push(...[111,109,112]);
+indexes.push(...[110,108,107]);
+indexes.push(...[108,93,21]);
+indexes.push(...[101,113,112]);
+indexes.push(...[1,2,3]);
+indexes.push(...[6,7,8]);
+indexes.push(...[10,6,11]);
+indexes.push(...[12,13,9]);
+indexes.push(...[5,14,13]);
+indexes.push(...[6,5,12]);
+indexes.push(...[5,8,15]);
+indexes.push(...[10,16,7]);
+indexes.push(...[18,19,20]);
+indexes.push(...[19,16,15]);
+indexes.push(...[14,15,16]);
+indexes.push(...[22,23,24]);
+indexes.push(...[23,25,26]);
+indexes.push(...[26,25,27]);
+indexes.push(...[24,26,28]);
+indexes.push(...[23,22,27]);
+indexes.push(...[30,31,32]);
+indexes.push(...[31,33,34]);
+indexes.push(...[33,35,36]);
+indexes.push(...[35,30,29]);
+indexes.push(...[34,36,29]);
+indexes.push(...[31,30,35]);
+indexes.push(...[38,39,40]);
+indexes.push(...[42,43,44]);
+indexes.push(...[38,37,44]);
+indexes.push(...[39,42,41]);
+indexes.push(...[44,13,14]);
+indexes.push(...[40,41,14]);
+indexes.push(...[10,9,37]);
+indexes.push(...[9,13,37]);
+indexes.push(...[13,44,37]);
+indexes.push(...[40,14,10]);
+indexes.push(...[2,45,46]);
+indexes.push(...[1,47,45]);
+indexes.push(...[1,4,48]);
+indexes.push(...[4,3,46]);
+indexes.push(...[7,18,46]);
+indexes.push(...[48,46,18]);
+indexes.push(...[18,17,48]);
+indexes.push(...[17,8,48]);
+indexes.push(...[8,7,47]);
+indexes.push(...[7,45,47]);
+indexes.push(...[50,51,52]);
+indexes.push(...[54,55,56]);
+indexes.push(...[54,53,51]);
+indexes.push(...[54,50,49]);
+indexes.push(...[51,53,56]);
+indexes.push(...[42,56,55]);
+indexes.push(...[58,59,60]);
+indexes.push(...[62,63,64]);
+indexes.push(...[62,61,58]);
+indexes.push(...[62,57,60]);
+indexes.push(...[61,64,59]);
+indexes.push(...[49,52,64]);
+indexes.push(...[66,67,68]);
+indexes.push(...[70,71,72]);
+indexes.push(...[70,69,66]);
+indexes.push(...[70,65,68]);
+indexes.push(...[67,66,73]);
+indexes.push(...[66,69,73]);
+indexes.push(...[55,49,73]);
+indexes.push(...[75,76,77]);
+indexes.push(...[79,80,81]);
+indexes.push(...[79,78,75]);
+indexes.push(...[79,74,77]);
+indexes.push(...[78,81,76]);
+indexes.push(...[67,73,49]);
+indexes.push(...[49,63,81]);
+indexes.push(...[63,60,76]);
+indexes.push(...[81,67,49]);
+indexes.push(...[76,81,63]);
+indexes.push(...[77,76,38]);
+indexes.push(...[76,60,38]);
+indexes.push(...[59,64,39]);
+indexes.push(...[64,52,42]);
+indexes.push(...[39,64,42]);
+indexes.push(...[52,56,42]);
+indexes.push(...[43,55,72]);
+indexes.push(...[71,68,43]);
+indexes.push(...[68,80,43]);
+indexes.push(...[43,72,71]);
+indexes.push(...[60,59,39]);
+indexes.push(...[38,43,80]);
+indexes.push(...[60,39,38]);
+indexes.push(...[68,67,81]);
+indexes.push(...[83,84,85]);
+indexes.push(...[87,88,89]);
+indexes.push(...[87,86,83]);
+indexes.push(...[87,82,85]);
+indexes.push(...[83,86,89]);
+indexes.push(...[27,22,84]);
+indexes.push(...[91,92,93]);
+indexes.push(...[95,96,97]);
+indexes.push(...[95,94,91]);
+indexes.push(...[95,90,93]);
+indexes.push(...[94,97,92]);
+indexes.push(...[97,96,85]);
+indexes.push(...[22,92,97]);
+indexes.push(...[97,85,84]);
+indexes.push(...[99,100,101]);
+indexes.push(...[103,104,105]);
+indexes.push(...[103,102,99]);
+indexes.push(...[103,98,101]);
+indexes.push(...[102,105,100]);
+indexes.push(...[88,85,100]);
+indexes.push(...[107,108,109]);
+indexes.push(...[111,112,113]);
+indexes.push(...[111,110,107]);
+indexes.push(...[111,106,109]);
+indexes.push(...[110,113,108]);
+indexes.push(...[85,96,113]);
+indexes.push(...[96,93,108]);
+indexes.push(...[85,113,100]);
+indexes.push(...[93,92,22]);
+indexes.push(...[28,27,105]);
+indexes.push(...[27,89,88]);
+indexes.push(...[88,105,27]);
+indexes.push(...[105,104,28]);
+indexes.push(...[93,22,21]);
+indexes.push(...[113,96,108]);
+indexes.push(...[101,112,21]);
+indexes.push(...[112,109,21]);
+indexes.push(...[101,21,28]);
+indexes.push(...[28,104,101]);
+indexes.push(...[109,108,21]);
+indexes.push(...[101,100,113]);
+
+  
+  //
+  for(let i=0;i<vertexPosition.length;i=i+9)
+  {
+    vertexNormal.push(...createNormal(vertexPosition[i+0],vertexPosition[i+1],vertexPosition[i+2],vertexPosition[i+3],vertexPosition[i+4],vertexPosition[i+5],vertexPosition[i+6],vertexPosition[i+7],vertexPosition[i+8]));
+  }
+  
+
+  return [indexes, vertexPosition, vertexNormal];
+}
+
+
+function startGL() 
+{
+  //alert("StartGL");
+  let canvas = document.getElementById("canvas3D"); //wyszukanie obiektu w strukturze strony 
+  gl = canvas.getContext("experimental-webgl"); //pobranie kontekstu OpenGL'u z obiektu canvas
+  gl.viewportWidth = canvas.width; //przypisanie wybranej przez nas rozdzielczości do systemu OpenGL
+  gl.viewportHeight = canvas.height;
+  
+    //Kod shaderów
+  const vertextShaderSource = ` //Znak akcentu z przycisku tyldy - na lewo od przycisku 1 na klawiaturze
+    precision highp float;
+    attribute vec3 aVertexPosition; 
+    //attribute vec3 aVertexNormal;
+    uniform mat4 uMMatrix;
+    uniform mat4 uInvMMatrix;
+    uniform mat4 uVMatrix;
+    uniform mat4 uPMatrix;
+    varying vec3 vPos;
+    //varying vec3 vNormal;
+    uniform float uNormalMul;
+    void main(void) {
+      vPos = vec3(uMMatrix * vec4(aVertexPosition, 1.0));
+      gl_Position = uPMatrix * uVMatrix * vec4(vPos,1.0); //Dokonanie transformacji położenia punktów z przestrzeni 3D do przestrzeni obrazu (2D)
+      //vNormal = normalize(mat3(uInvMMatrix) * uNormalMul*aVertexNormal); //Obrot wektorow normalnych
+    }
+  `;
+  const fragmentShaderSource = `
+    precision highp float;
+    varying vec3 vPos;
+    //varying vec3 vNormal;
+    uniform sampler2D uSampler;
+    uniform vec3 uLightPosition;
+    uniform vec3 uColor;
+    void main(void) {
+      //vec3 lightDirection = normalize(uLightPosition - vPos);
+      //float brightness = max(dot(vNormal,lightDirection), 0.0);
+      //gl_FragColor = vec4(vColor,1.0); //Ustalenie stałego koloru wszystkich punktów sceny
+      //gl_FragColor = texture2D(uSampler,vTexUV)*vec4(vColor,1.0); //Odczytanie punktu tekstury i przypisanie go jako koloru danego punktu renderowaniej figury
+      //gl_FragColor = vec4((vNormal+vec3(1.0,1.0,1.0))/2.0,1.0); 
+      //gl_FragColor = clamp(texture2D(uSampler,vTexUV) * vec4(brightness,brightness,brightness,1.0),0.0,1.0);
+      //gl_FragColor = clamp(vec4(uColor,1.0) * vec4(brightness,brightness,brightness,1.0),0.0,1.0);
+      gl_FragColor = clamp(vec4(uColor,1.0) ,0.0,1.0);
+    }
+  `;
+  let fragmentShader = gl.createShader(gl.FRAGMENT_SHADER); //Stworzenie obiektu shadera 
+  let vertexShader   = gl.createShader(gl.VERTEX_SHADER);
+  gl.shaderSource(fragmentShader, fragmentShaderSource); //Podpięcie źródła kodu shader
+  gl.shaderSource(vertexShader, vertextShaderSource);
+  gl.compileShader(fragmentShader); //Kompilacja kodu shader
+  gl.compileShader(vertexShader);
+  if (!gl.getShaderParameter(fragmentShader, gl.COMPILE_STATUS)) { //Sprawdzenie ewentualnych błedów kompilacji
+    alert(gl.getShaderInfoLog(fragmentShader));
+    return null;
+  }
+  if (!gl.getShaderParameter(vertexShader, gl.COMPILE_STATUS)) {
+    alert(gl.getShaderInfoLog(vertexShader));
+    return null;
+  }
+  
+  shaderProgram = gl.createProgram(); //Stworzenie obiektu programu 
+  gl.attachShader(shaderProgram, vertexShader); //Podpięcie obu shaderów do naszego programu wykonywanego na karcie graficznej
+  gl.attachShader(shaderProgram, fragmentShader);
+  gl.linkProgram(shaderProgram);
+  if (!gl.getProgramParameter(shaderProgram, gl.LINK_STATUS)) alert("Could not initialise shaders");  //Sprawdzenie ewentualnych błedów
+  
+  //Opis sceny 3D, położenie punktów w przestrzeni 3D w formacie X,Y,Z 
+  let vertexPosition; //3 punkty po 3 składowe - X1,Y1,Z1, X2,Y2,Z2, X3,Y3,Z3 - 1 trójkąt
+  let vertexNormal;
+  let indexes;
+  
+  //[vertexPosition, vertexColor, vertexCoords, vertexNormal] = CreateShpere(0,0,0,2, 6, 12); 
+  [indexes, vertexPosition, vertexNormal] = CreateChurch();
+  [indexes2, vertexPosition2, vertexNormal2] = CreateHouse();
+  
+  vertexPositionBuffer = gl.createBuffer(); //Stworzenie tablicy w pamieci karty graficznej
+  gl.bindBuffer(gl.ARRAY_BUFFER, vertexPositionBuffer);
+  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(vertexPosition), gl.STATIC_DRAW);
+  vertexPositionBuffer.itemSize = 3; //zdefiniowanie liczby współrzednych per wierzchołek
+  vertexPositionBuffer.numItems = vertexPosition.length/9; //Zdefinoiowanie liczby trójkątów w naszym buforze
+  
+  vertexNormalBuffer = gl.createBuffer();
+  gl.bindBuffer(gl.ARRAY_BUFFER, vertexNormalBuffer);
+  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(vertexNormal), gl.STATIC_DRAW);
+  vertexNormalBuffer.itemSize = 3;
+  vertexNormalBuffer.numItems = vertexNormal.length/9;
+  
+  indexBuffer = gl.createBuffer();
+  gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, indexBuffer);
+  gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(indexes), gl.STATIC_DRAW);
+  indexBuffer.numItems = indexes.length;
+
+  //2obiekt
+  vertexPositionBuffer2 = gl.createBuffer(); //Stworzenie tablicy w pamieci karty graficznej
+  gl.bindBuffer(gl.ARRAY_BUFFER, vertexPositionBuffer2);
+  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(vertexPosition2), gl.STATIC_DRAW);
+  vertexPositionBuffer2.itemSize = 3; //zdefiniowanie liczby współrzednych per wierzchołek
+  vertexPositionBuffer2.numItems = vertexPosition2.length/9; //Zdefinoiowanie liczby trójkątów w naszym buforze
+  
+  vertexNormalBuffer2 = gl.createBuffer();
+  gl.bindBuffer(gl.ARRAY_BUFFER, vertexNormalBuffer2);
+  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(vertexNormal2), gl.STATIC_DRAW);
+  vertexNormalBuffer2.itemSize = 3;
+  vertexNormalBuffer2.numItems = vertexNormal2.length/9;
+  
+  indexBuffer2 = gl.createBuffer();
+  gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, indexBuffer2);
+  gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(indexes2), gl.STATIC_DRAW);
+  indexBuffer2.numItems = indexes2.length;
+
+  //Macierze opisujące położenie wirtualnej kamery w przestrzenie 3D
+  let aspect = gl.viewportWidth/gl.viewportHeight;
+  let fov = 90.0 * Math.PI / 180.0; //Określenie pola widzenia kamery
+  let zFar = 100.0; //Ustalenie zakresów renderowania sceny 3D (od obiektu najbliższego zNear do najdalszego zFar)
+  let zNear = 0.1;
+  uPMatrix = [
+   1.0/(aspect*Math.tan(fov/2)),0                           ,0                         ,0                            ,
+   0                         ,1.0/(Math.tan(fov/2))         ,0                         ,0                            ,
+   0                         ,0                           ,-(zFar+zNear)/(zFar-zNear)  , -1,
+   0                         ,0                           ,-(2*zFar*zNear)/(zFar-zNear) ,0.0,
+  ];
+  Tick();
+} 
+//let angle = 45.0; //Macierz transformacji świata - określenie położenia kamery 
+
+var angleZ = 0.0;
+var angleY = 10.0;
+var angleX = 10.0;
+var KameraPositionZ = -18.0;
+
+
+var Object1PositionX = 5.0;
+var Object1PositionY = -10.0;
+var Object1PositionZ = -10.0;
+
+var Object1AngleY = -135.0;
+
+var Object2PositionX = -5.0;
+var Object2PositionY = -10.0;
+var Object2PositionZ = -10.0;
+
+var Object2AngleY = -60.0;
+
+var Object3PositionX = 1.0;
+var Object3PositionY = -10.0;
+var Object3PositionZ = 0.0;
+
+var Object3AngleY = -270.0;
+
+var Object6PositionX = 0.0;
+var Object6PositionY = -10.0;
+var Object6PositionZ = -9.0;
+
+var Object6AngleY = 45.0;
+
+var Object4PositionX = 10.0;
+var Object4PositionY = -10.0;
+var Object4PositionZ = 5.0;
+
+var Object4AngleY = 60.0;
+
+var Object5PositionX = 10.0;
+var Object5PositionY = -10.0;
+var Object5PositionZ = -5.0;
+
+var Object5AngleY = 330.0;
+
+//var LightSize = 0.1;
+var Object1Sizedx = 0.1;
+var Object1Sizedy = 0.1;
+var Object1Sizedz = 0.1;
+var Object2Sizedx = 0.1;
+var Object2Sizedy = 0.1;
+var Object2Sizedz = 0.1;
+var Object3Sizedx = 0.1;
+var Object3Sizedy = 0.1;
+var Object3Sizedz = 0.1;
+
+var Object4Sizedx = 0.5;
+var Object4Sizedy = 0.5;
+var Object4Sizedz = 0.5;
+var Object5Sizedx = 0.5;
+var Object5Sizedy = 0.5;
+var Object5Sizedz = 0.5;
+var Object6Sizedx = 0.5;
+var Object6Sizedy = 0.5;
+var Object6Sizedz = 0.5;
+
+var LightPositionX = 0;
+var LightPositionY = 0;
+var LightPositionZ = 3;
+
+
+function Tick()
+{ 
+  //let uMMatrix0 = CreateIdentytyMatrix(); 
+  let uMMatrix1 = CreateIdentytyMatrix();
+  let uMMatrix2 = CreateIdentytyMatrix();
+  let uMMatrix3 = CreateIdentytyMatrix();
+  let uMMatrix4 = CreateIdentytyMatrix();
+  let uMMatrix5 = CreateIdentytyMatrix();
+  let uMMatrix6 = CreateIdentytyMatrix();
+  
+  let uVMatrix = CreateIdentytyMatrix();
+  
+  
+  uVMatrix = MatrixMul(uVMatrix,CreateRotationXMatrix(angleX));
+  uVMatrix = MatrixMul(uVMatrix,CreateRotationYMatrix(angleY));
+  uVMatrix = MatrixMul(uVMatrix,CreateRotationZMatrix(angleZ));
+  uVMatrix = MatrixMul(uVMatrix,CreateTranslationMatrix(0,0,KameraPositionZ));
+  
+  uMMatrix1 = MatrixMul(uMMatrix1,CreateScaleMatrix(Object1Sizedx,Object1Sizedy,Object1Sizedz));
+  uMMatrix1 = MatrixMul(uMMatrix1,CreateTranslationMatrix(Object1Sizedx,0.0,0.0)); 
+  uMMatrix1 = MatrixMul(uMMatrix1,CreateRotationYMatrix(Object1AngleY));
+  uMMatrix1 = MatrixMul(uMMatrix1,CreateTranslationMatrix(Object1PositionX,Object1PositionY,Object1PositionZ));  
+  
+  uMMatrix2 = MatrixMul(uMMatrix2,CreateScaleMatrix(Object2Sizedx,Object2Sizedy,Object2Sizedz));
+  uMMatrix2 = MatrixMul(uMMatrix2,CreateTranslationMatrix(Object2Sizedx,0.0,0.0)); 
+  uMMatrix2 = MatrixMul(uMMatrix2,CreateRotationYMatrix(Object2AngleY));
+  uMMatrix2 = MatrixMul(uMMatrix2,CreateTranslationMatrix(Object2PositionX,Object2PositionY,Object2PositionZ));
+  
+  uMMatrix3 = MatrixMul(uMMatrix3,CreateScaleMatrix(Object3Sizedx,Object3Sizedy,Object3Sizedz));
+  uMMatrix3 = MatrixMul(uMMatrix3,CreateTranslationMatrix(Object3Sizedx,0.0,0.0)); 
+  uMMatrix3 = MatrixMul(uMMatrix3,CreateRotationYMatrix(Object3AngleY));
+  uMMatrix3 = MatrixMul(uMMatrix3,CreateTranslationMatrix(Object3PositionX,Object3PositionY,Object3PositionZ));
+
+  uMMatrix4 = MatrixMul(uMMatrix4,CreateScaleMatrix(Object4Sizedx,Object4Sizedy,Object4Sizedz));
+  uMMatrix4 = MatrixMul(uMMatrix4,CreateTranslationMatrix(Object4Sizedx,0.0,0.0)); 
+  uMMatrix4 = MatrixMul(uMMatrix4,CreateRotationYMatrix(Object4AngleY));
+  uMMatrix4 = MatrixMul(uMMatrix4,CreateTranslationMatrix(Object4PositionX,Object4PositionY,Object4PositionZ));  
+  
+  uMMatrix5 = MatrixMul(uMMatrix5,CreateScaleMatrix(Object5Sizedx,Object5Sizedy,Object5Sizedz));
+  uMMatrix5 = MatrixMul(uMMatrix5,CreateTranslationMatrix(Object5Sizedx,0.0,0.0)); 
+  uMMatrix5 = MatrixMul(uMMatrix5,CreateRotationYMatrix(Object5AngleY));
+  uMMatrix5 = MatrixMul(uMMatrix5,CreateTranslationMatrix(Object5PositionX,Object5PositionY,Object5PositionZ));
+  
+  uMMatrix6 = MatrixMul(uMMatrix6,CreateScaleMatrix(Object6Sizedx,Object6Sizedy,Object6Sizedz));
+  uMMatrix6 = MatrixMul(uMMatrix6,CreateTranslationMatrix(Object6Sizedx,0.0,0.0)); 
+  uMMatrix6 = MatrixMul(uMMatrix6,CreateRotationYMatrix(Object6AngleY));
+  uMMatrix6 = MatrixMul(uMMatrix6,CreateTranslationMatrix(Object6PositionX,Object6PositionY,Object6PositionZ));
+  
+  //uMMatrix0 = MatrixMul(uMMatrix0,CreateScaleMatrix(LightSize,LightSize,LightSize));
+  //uMMatrix0 = MatrixMul(uMMatrix0,CreateTranslationMatrix(LightPositionX,LightPositionY,LightPositionZ));
+  
+  //alert(uPMatrix);
+  
+  //Render Scene
+  gl.viewport(0, 0, gl.viewportWidth, gl.viewportHeight); 
+  gl.clearColor(0.2,0.2,0.2,1.0); //Wyczyszczenie obrazu kolorem czerwonym
+  gl.clearDepth(1.0);             //Wyczyścienie bufora głebi najdalszym planem
+  gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+  gl.useProgram(shaderProgram)   //Użycie przygotowanego programu shaderowego
+  
+  gl.enable(gl.DEPTH_TEST);           // Włączenie testu głębi - obiekty bliższe mają przykrywać obiekty dalsze
+  gl.depthFunc(gl.LEQUAL);            // 
+  
+  gl.uniformMatrix4fv(gl.getUniformLocation(shaderProgram, "uPMatrix"), false, new Float32Array(uPMatrix)); //Wgranie macierzy kamery do pamięci karty graficznej
+  gl.uniformMatrix4fv(gl.getUniformLocation(shaderProgram, "uVMatrix"), false, new Float32Array(uVMatrix));
+  gl.uniform1f(gl.getUniformLocation(shaderProgram, "uNormalMul"),1.0);
+  gl.uniform3f(gl.getUniformLocation(shaderProgram, "uLightPosition"),LightPositionX,LightPositionY,LightPositionZ);
+  
+  gl.enableVertexAttribArray(gl.getAttribLocation(shaderProgram, "aVertexPosition"));  //Przekazanie położenia
+  gl.bindBuffer(gl.ARRAY_BUFFER, vertexPositionBuffer);
+  gl.vertexAttribPointer(gl.getAttribLocation(shaderProgram, "aVertexPosition"), vertexPositionBuffer.itemSize, gl.FLOAT, false, 0, 0);
+  
+  gl.enableVertexAttribArray(gl.getAttribLocation(shaderProgram, "aVertexNormal"));  //Przekazywanie wektorów normalnych
+  gl.bindBuffer(gl.ARRAY_BUFFER, vertexNormalBuffer);
+  gl.vertexAttribPointer(gl.getAttribLocation(shaderProgram, "aVertexNormal"), vertexNormalBuffer.itemSize, gl.FLOAT, false, 0, 0);
+  
+  gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, indexBuffer);
+  
+  
+  gl.uniformMatrix4fv(gl.getUniformLocation(shaderProgram, "uMMatrix"), false, new Float32Array(uMMatrix1));
+  gl.uniformMatrix4fv(gl.getUniformLocation(shaderProgram, "uInvMMatrix"), false, new Float32Array(MatrixTransposeInverse(uMMatrix1)));
+  gl.uniform3f(gl.getUniformLocation(shaderProgram, "uColor"),0.5,0.5,0.0);  
+  //gl.drawArrays(gl.TRIANGLES, 0, vertexPositionBuffer.numItems*vertexPositionBuffer.itemSize); //Faktyczne wywołanie rendrowania
+  gl.drawElements(gl.TRIANGLES, indexBuffer.numItems, gl.UNSIGNED_SHORT, 0);
+  
+  //Drugi Obiekt
+  gl.uniformMatrix4fv(gl.getUniformLocation(shaderProgram, "uMMatrix"), false, new Float32Array(uMMatrix2));
+  gl.uniformMatrix4fv(gl.getUniformLocation(shaderProgram, "uInvMMatrix"), false, new Float32Array(MatrixTransposeInverse(uMMatrix2)));
+  gl.uniform3f(gl.getUniformLocation(shaderProgram, "uColor"),0.0,1.0,0.5);
+  //gl.drawArrays(gl.TRIANGLES, 0, vertexPositionBuffer.numItems*vertexPositionBuffer.itemSize); //Faktyczne wywołanie rendrowania
+  gl.drawElements(gl.TRIANGLES, indexBuffer.numItems, gl.UNSIGNED_SHORT, 0);
+  
+  //Trzeci Obiekt
+  gl.uniformMatrix4fv(gl.getUniformLocation(shaderProgram, "uMMatrix"), false, new Float32Array(uMMatrix3));
+  gl.uniformMatrix4fv(gl.getUniformLocation(shaderProgram, "uInvMMatrix"), false, new Float32Array(MatrixTransposeInverse(uMMatrix3)));
+  gl.uniform3f(gl.getUniformLocation(shaderProgram, "uColor"),1.0,0.0,1.0);
+  //gl.drawArrays(gl.TRIANGLES, 0, vertexPositionBuffer.numItems*vertexPositionBuffer.itemSize); //Faktyczne wywołanie rendrowania
+  gl.drawElements(gl.TRIANGLES, indexBuffer.numItems, gl.UNSIGNED_SHORT, 0);
+  
+  // //Obiekt Światła
+  // gl.uniformMatrix4fv(gl.getUniformLocation(shaderProgram, "uMMatrix"), false, new Float32Array(uMMatrix0));
+  // gl.uniformMatrix4fv(gl.getUniformLocation(shaderProgram, "uInvMMatrix"), false, new Float32Array(MatrixTransposeInverse(uMMatrix0)));
+  // gl.uniform3f(gl.getUniformLocation(shaderProgram, "uColor"),1.0,1.0,0.0);
+  // gl.uniform1f(gl.getUniformLocation(shaderProgram, "uNormalMul"),-1.0);  
+  // //gl.drawArrays(gl.TRIANGLES, 0, vertexPositionBuffer.numItems*vertexPositionBuffer.itemSize); //Faktyczne wywołanie rendrowania
+  // gl.drawElements(gl.TRIANGLES, indexBuffer.numItems, gl.UNSIGNED_SHORT, 0);
+  
+
+  //2biekt
+  gl.enableVertexAttribArray(gl.getAttribLocation(shaderProgram, "aVertexPosition"));  //Przekazanie położenia
+  gl.bindBuffer(gl.ARRAY_BUFFER, vertexPositionBuffer2);
+  gl.vertexAttribPointer(gl.getAttribLocation(shaderProgram, "aVertexPosition"), vertexPositionBuffer2.itemSize, gl.FLOAT, false, 0, 0);
+  
+  gl.enableVertexAttribArray(gl.getAttribLocation(shaderProgram, "aVertexNormal"));  //Przekazywanie wektorów normalnych
+  gl.bindBuffer(gl.ARRAY_BUFFER, vertexNormalBuffer2);
+  gl.vertexAttribPointer(gl.getAttribLocation(shaderProgram, "aVertexNormal"), vertexNormalBuffer2.itemSize, gl.FLOAT, false, 0, 0);
+  
+  gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, indexBuffer2);
+  
+  
+  gl.uniformMatrix4fv(gl.getUniformLocation(shaderProgram, "uMMatrix"), false, new Float32Array(uMMatrix4));
+  gl.uniformMatrix4fv(gl.getUniformLocation(shaderProgram, "uInvMMatrix"), false, new Float32Array(MatrixTransposeInverse(uMMatrix4)));
+  gl.uniform3f(gl.getUniformLocation(shaderProgram, "uColor"),1.5,0.5,0.5);  
+  //gl.drawArrays(gl.TRIANGLES, 0, vertexPositionBuffer.numItems*vertexPositionBuffer.itemSize); //Faktyczne wywołanie rendrowania
+  gl.drawElements(gl.TRIANGLES, indexBuffer2.numItems, gl.UNSIGNED_SHORT, 0);
+  
+  //Drugi Obiekt
+  gl.uniformMatrix4fv(gl.getUniformLocation(shaderProgram, "uMMatrix"), false, new Float32Array(uMMatrix5));
+  gl.uniformMatrix4fv(gl.getUniformLocation(shaderProgram, "uInvMMatrix"), false, new Float32Array(MatrixTransposeInverse(uMMatrix5)));
+  gl.uniform3f(gl.getUniformLocation(shaderProgram, "uColor"),1.0,1.0,0.0);
+  //gl.drawArrays(gl.TRIANGLES, 0, vertexPositionBuffer.numItems*vertexPositionBuffer.itemSize); //Faktyczne wywołanie rendrowania
+  gl.drawElements(gl.TRIANGLES, indexBuffer2.numItems, gl.UNSIGNED_SHORT, 0);
+  
+  //Trzeci Obiekt
+  gl.uniformMatrix4fv(gl.getUniformLocation(shaderProgram, "uMMatrix"), false, new Float32Array(uMMatrix6));
+  gl.uniformMatrix4fv(gl.getUniformLocation(shaderProgram, "uInvMMatrix"), false, new Float32Array(MatrixTransposeInverse(uMMatrix6)));
+  gl.uniform3f(gl.getUniformLocation(shaderProgram, "uColor"),0.0,0.0,1.0);
+  //gl.drawArrays(gl.TRIANGLES, 0, vertexPositionBuffer.numItems*vertexPositionBuffer.itemSize); //Faktyczne wywołanie rendrowania
+  gl.drawElements(gl.TRIANGLES, indexBuffer2.numItems, gl.UNSIGNED_SHORT, 0);
+  
+  // //Obiekt Światła
+  // gl.uniformMatrix4fv(gl.getUniformLocation(shaderProgram, "uMMatrix"), false, new Float32Array(uMMatrix0));
+  // gl.uniformMatrix4fv(gl.getUniformLocation(shaderProgram, "uInvMMatrix"), false, new Float32Array(MatrixTransposeInverse(uMMatrix0)));
+  // gl.uniform3f(gl.getUniformLocation(shaderProgram, "uColor"),1.0,1.0,0.0);
+  // gl.uniform1f(gl.getUniformLocation(shaderProgram, "uNormalMul"),-1.0);  
+  // //gl.drawArrays(gl.TRIANGLES, 0, vertexPositionBuffer.numItems*vertexPositionBuffer.itemSize); //Faktyczne wywołanie rendrowania
+  // gl.drawElements(gl.TRIANGLES, indexBuffer2.numItems, gl.UNSIGNED_SHORT, 0);
+
+
+  setTimeout(Tick,10);
+}
+function handlekeydown(e)
+{
+ // Q W E A S D
+ if(e.keyCode==87) angleX=angleX+1.0; //W
+ if(e.keyCode==83) angleX=angleX-1.0; //S
+ if(e.keyCode==68) angleY=angleY+1.0;
+ if(e.keyCode==65) angleY=angleY-1.0;
+ if(e.keyCode==81) angleZ=angleZ+1.0;
+ if(e.keyCode==69) angleZ=angleZ-1.0;
+ //alert(e.keyCode);
+ //alert(angleX);
+ 
+ //U I O J K L
+ if(e.keyCode==76) LightPositionX=LightPositionX+0.1;
+ if(e.keyCode==74) LightPositionX=LightPositionX-0.1;
+ if(e.keyCode==73) LightPositionY=LightPositionY+0.1;
+ if(e.keyCode==75) LightPositionY=LightPositionY-0.1;
+ if(e.keyCode==85) LightPositionZ=LightPositionZ+0.1;
+ if(e.keyCode==79) LightPositionZ=LightPositionZ-0.1;
+ 
+ //Z X
+ if(e.keyCode==88) Object1AngleZ=Object1AngleZ-0.1;
+ if(e.keyCode==90) Object1AngleZ=Object1AngleZ+0.1;
+ 
+ //C V
+ if(e.keyCode==67) Object2AngleZ=Object2AngleZ-0.1;
+ if(e.keyCode==86) Object2AngleZ=Object2AngleZ+0.1;
+ 
+ //B N
+ if(e.keyCode==66) Object3AngleZ=Object3AngleZ-0.1;
+ if(e.keyCode==78) Object3AngleZ=Object3AngleZ+0.1;
+}
+</script>
+</head>
+<body onload="startGL()" onkeydown="handlekeydown(event)">
+<canvas id="canvas3D" width="1280" height="720" style="border: solid black 1px"></canvas>
+</body>
+</html>
